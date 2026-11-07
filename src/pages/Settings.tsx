@@ -39,7 +39,8 @@ export function Settings() {
   }, [apiKey, updateSettings, initializeGemini])
 
   const handleTestApiKey = useCallback(async () => {
-    if (!apiKey.trim() || apiKey === 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢') {
+    const keyToTest = (apiKey.trim() !== '' && apiKey !== 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢') ? apiKey.trim() : settings.geminiApiKey
+    if (!keyToTest) {
       setTestResult({ status: 'error', message: 'Please enter an API key first' })
       return
     }
@@ -49,7 +50,7 @@ export function Settings() {
     try {
       // Create a temporary service instance for testing
       const testService = new (await import('@/services/ai/gemini')).GeminiReviewService()
-      testService.initialize(apiKey.trim())
+      testService.initialize(keyToTest)
 
       // Use the dedicated test connection method
       const result = await testService.testConnection()
@@ -68,7 +69,7 @@ export function Settings() {
       else message = err.message
       setTestResult({ status: 'error', message })
     }
-  }, [apiKey])
+  }, [apiKey, settings.geminiApiKey])
 
   const handleDeleteApiKey = useCallback(async () => {
     await updateSettings({ geminiApiKey: '' })

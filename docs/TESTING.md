@@ -119,7 +119,9 @@
 
 ---
 
-## 4. E2E Test Scenarios (Manual)
+## 4. E2E Test Scenarios (Manual — NOT EXECUTED)
+
+> **Note**: The following E2E scenarios are documented checklists for release validation. They have **not been executed** in this session or in CI. No test artifacts, logs, or screenshots exist for these scenarios.
 
 ### 4.1 Happy Path: Complete Workflow
 
@@ -141,7 +143,7 @@
 | 14 | Go to History | Both submission and review in timeline |
 | 15 | Click history item | Detail modal with correct data |
 
-### 4.2 Edge Cases
+### 4.2 Edge Cases (Not Executed)
 
 | Scenario | Steps | Expected |
 |----------|-------|----------|
@@ -154,7 +156,7 @@
 | Mobile sidebar | Resize < 768px, click hamburger | Slide-in overlay appears |
 | Reduced motion | Enable OS setting | ThreeBackground hidden, no animations |
 
-### 4.3 Responsive Testing
+### 4.3 Responsive Testing (Not Executed)
 
 | Viewport | Test | Expected |
 |----------|------|----------|
@@ -165,44 +167,50 @@
 
 ---
 
-## 5. Accessibility Testing
+## 5. Accessibility Testing (Manual — NOT EXECUTED)
+
+> **Note**: The following accessibility criteria are documented checklists. They have **not been verified** with screen readers (NVDA/VoiceOver) or formal axe-core CI runs in this session. "Pass" status reflects design-time implementation review only.
 
 | Criterion | Test Method | Status |
 |-----------|-------------|--------|
-| Keyboard navigation | Tab through all pages | ✅ Pass |
-| Focus visible | All interactive elements | ✅ Pass |
-| ARIA labels | Icon-only buttons | ✅ Pass |
-| Heading hierarchy | h1 → h2 → h3 | ✅ Pass |
-| Color contrast | axe-core + manual | ✅ Pass |
-| Screen reader | NVDA + VoiceOver | ⚠️ Partial |
-| Form labels | Associated with inputs | ✅ Pass |
-| Error messages | `aria-describedby` | ✅ Pass |
-| Live regions | Toast announcements | ✅ Pass |
-| Focus trap | Modal open/close | ✅ Pass |
-| Reduced motion | OS setting respected | ✅ Pass |
+| Keyboard navigation | Tab through all pages | ✅ Design review |
+| Focus visible | All interactive elements | ✅ Design review |
+| ARIA labels | Icon-only buttons | ✅ Design review |
+| Heading hierarchy | h1 → h2 → h3 | ✅ Design review |
+| Color contrast | axe-core + manual | ✅ Design review |
+| Screen reader | NVDA + VoiceOver | ❌ Not verified |
+| Form labels | Associated with inputs | ✅ Design review |
+| Error messages | `aria-describedby` | ✅ Design review |
+| Live regions | Toast announcements | ✅ Design review |
+| Focus trap | Modal open/close | ✅ Design review |
+| Reduced motion | OS setting respected | ✅ Design review |
 
 ---
 
-## 6. Performance Testing
+## 6. Performance Testing (Targets — NOT VALIDATED BY LIGHTHOUSE CI)
 
-| Metric | Target | Measured | Status |
-|--------|--------|----------|--------|
-| Initial Load (LCP) | < 2s | ~1.2s | ✅ Pass |
-| Time to Interactive | < 3s | ~1.8s | ✅ Pass |
-| Bundle Size (gzipped) | < 200KB | ~145KB | ✅ Pass |
-| AI Review Latency | < 10s | ~6s (5000 chars) | ✅ Pass |
-| Memory Usage | < 50MB | ~35MB | ✅ Pass |
+> **Note**: The following are development-time targets based on local dev/preview builds. They have **not been validated** by Lighthouse CI or formal performance testing. "Measured" values are informal observations only.
+
+| Metric | Target | Observed (Dev) | Status |
+|--------|--------|----------------|--------|
+| Initial Load (LCP) | < 2s | ~1.2s (dev) | ⚠️ Target |
+| Time to Interactive | < 3s | ~1.8s (dev) | ⚠️ Target |
+| Bundle Size (gzipped) | < 200KB | ~145KB (dev) | ⚠️ Target |
+| AI Review Latency | < 10s | ~6s (5000 chars, dev) | ⚠️ Target |
+| Memory Usage | < 50MB | ~35MB (dev) | ⚠️ Target |
 
 ---
 
-## 7. Cross-Browser Testing
+## 7. Cross-Browser Testing (Not Executed)
+
+> **Note**: The following browser compatibility targets are documented for reference. They have **not been tested** in this session or in CI. No cross-browser test artifacts exist.
 
 | Browser | Version | Status | Notes |
 |---------|---------|--------|-------|
-| Chrome | 120+ | ✅ Pass | Primary target |
-| Firefox | 120+ | ✅ Pass | IndexedDB works |
-| Safari | 17+ | ✅ Pass | IndexedDB works |
-| Edge | 120+ | ✅ Pass | Chromium-based |
+| Chrome | 120+ | ❌ Not tested | Primary target |
+| Firefox | 120+ | ❌ Not tested | IndexedDB works |
+| Safari | 17+ | ❌ Not tested | IndexedDB works |
+| Edge | 120+ | ❌ Not tested | Chromium-based |
 
 ---
 
@@ -249,13 +257,13 @@ npm run preview
 | Unit Tests (storage, gemini, utils) | Automated | 45 | 45 | 0 | 0 |
 | Integration Tests (AppContext, ThemeContext) | Automated | 15 | 15 | 0 | 0 |
 | **Automated Subtotal** | **Automated** | **60** | **60** | **0** | **0** |
-| E2E Scenarios (Happy Path + Edge Cases) | Manual | 8 | — | — | — |
-| Accessibility Criteria | Manual | 10 | — | — | — |
-| Performance Metrics | Manual | 5 | — | — | — |
-| Cross-Browser | Manual | 4 | — | — | — |
+| E2E Scenarios (Happy Path + Edge Cases) | Manual (Not Executed) | 8 | — | — | — |
+| Accessibility Criteria | Manual (Not Verified) | 10 | — | — | — |
+| Performance Metrics | Manual (Not Validated) | 5 | — | — | — |
+| Cross-Browser | Manual (Not Tested) | 4 | — | — | — |
 | **Manual Subtotal** | **Manual** | **27** | **N/A** | **N/A** | **N/A** |
 
-**Automated Tests: 60/60 passing (100%)**  
-**Manual Scenarios: 27 documented — not executed in CI**
+**Automated Tests: 60/60 passing (100%)** — Verified by `npm run test -- --run`  
+**Manual Scenarios: 27 documented only — NOT EXECUTED in this session or CI**
 
-> **Note**: Only the 60 automated tests (Unit + Integration) run in CI via `npm run test`. E2E, Accessibility, Performance, and Cross-Browser are manual verification checklists documented for release validation but not automated.
+> **Note**: Only the 60 automated tests (Unit + Integration) run in CI via `npm run test`. E2E, Accessibility, Performance, and Cross-Browser are documented checklists only — no execution evidence exists.

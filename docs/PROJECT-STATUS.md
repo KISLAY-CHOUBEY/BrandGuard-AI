@@ -12,8 +12,8 @@
 | **MVP Features** | 100% Complete |
 | **Documentation** | 100% Complete |
 | **Automated Testing** | 100% Complete (60/60 passing) |
-| **Manual Testing** | 📋 Documented (not executed in CI) |
-| **Demo Readiness** | 100% Complete |
+| **Manual Testing** | 📋 Documented — NOT EXECUTED (no CI, no artifacts) |
+| **Demo Readiness** | ⚠️ Materials Ready; Manual Validation Pending |
 
 ---
 
@@ -130,10 +130,10 @@
 | Unit Tests (Utils) | Automated | ✅ Pass | 16 tests |
 | Integration Tests | Automated | ✅ Pass | 15 tests |
 | **Automated Subtotal** | **Automated** | **✅ Pass** | **60 tests** |
-| Manual E2E Scenarios | Manual | 📋 Documented | 8 scenarios (not executed in CI) |
-| Accessibility Criteria | Manual | ⚠️ Partial | 9/10 criteria (manual verification) |
-| Cross-Browser | Manual | 📋 Documented | 4 browsers (not executed in CI) |
-| Performance Metrics | Manual | 📋 Documented | All targets met (manual verification) |
+| Manual E2E Scenarios | Manual | 📋 Documented — NOT EXECUTED | 8 scenarios (no artifacts) |
+| Accessibility Criteria | Manual | ❌ Not Verified | 10 criteria (design review only; NVDA/VoiceOver not tested) |
+| Cross-Browser | Manual | ❌ Not Tested | 4 browsers (no test artifacts) |
+| Performance Metrics | Manual | ⚠️ Targets (Dev Only) | 5 targets (not validated by Lighthouse CI) |
 
 ---
 
@@ -143,7 +143,7 @@
 |----|-------|----------|--------|------------|
 | BUG-001 | Three.js background not hidden on iOS Safari low power mode | Low | ✅ Fixed | Added isIOSLowPowerMode() detection in AtmosphericBackground.tsx |
 | BUG-002 | Modal focus trap doesn't restore focus on close | Low | ✅ Fixed | Focus restoration + focus trap in Modal.tsx |
-| BUG-003 | Date formatting inconsistent in some locales | Low | ⚠️ Partial | Uses en-US; date utils handle formatting |
+| BUG-003 | Date formatting inconsistent in some locales | Low | ⚠️ Partial | Hardcoded en-US locale in date.ts; no locale detection implemented |
 | BUG-004 | Large content (>10k chars) causes slow render in Content tab | Medium | ✅ Fixed | Show more/less toggle in Reviews.tsx for >5000 chars |
 | BUG-005 | Gemini API rate limit not handled with retry | Medium | ✅ Fixed | Exponential backoff retry logic in gemini.ts (3 retries) |
 
@@ -195,13 +195,13 @@
 - [x] Local persistence working
 - [x] Responsive UI complete
 
-### Round 3 (Demo) — ✅ COMPLETE
-- [x] Documentation complete
-- [x] Build verified
-- [x] Demo script finalized
-- [x] Sample data prepared
-- [x] Live rehearsal done
-- [x] Backup video recorded
+### Round 3 (Demo) — ⚠️ DOCUMENTATION UPDATED; MANUAL VALIDATION PENDING
+- [x] Documentation updated for accuracy (this session)
+- [x] Build verified, no console errors
+- ⏳ Demo script — manual validation pending
+- ⏳ Sample data — manual validation pending
+- ⏳ Live rehearsal — pending user action
+- ⏳ Backup video — pending user action
 
 ---
 
@@ -228,7 +228,7 @@ Documents:         16 markdown files
 TypeScript Files:  48+
 CSS Variables:     60+ design tokens
 Automated Tests:   60 (Unit + Integration)
-Manual Scenarios:  27 (E2E, A11y, Perf, Browser)
+Manual Scenarios:  27 (E2E, A11y, Perf, Browser) — DOCUMENTED ONLY
 Bundle Size:       ~145 KB gzipped
 ```
 

@@ -101,7 +101,10 @@ Per [Google's Data Usage Policies](https://ai.google.dev/gemini-api/terms):
 
 ## 5. Client-Side Security Measures
 
-### 5.1 Content Security Policy (Production)
+### 5.1 Content Security Policy (Production) — NOT IMPLEMENTED
+
+> **Note**: The CSP below is a **design target**, not currently implemented. `vercel.json` does not include a CSP header. This policy should be added to `vercel.json` headers before production deployment.
+
 ```http
 Content-Security-Policy:
   default-src 'self';
@@ -143,10 +146,14 @@ Content-Security-Policy:
 ```bash
 # Audit command
 npm audit
+```
 
-# Current status (as of build)
-# - No critical vulnerabilities in production dependencies
-# - No high vulnerabilities in production dependencies
+> **Note**: The following dependency audit status is **UNVERIFIED** — `npm audit` has not been run in this session. The claims below are from a prior assessment and should be re-validated before production deployment.
+
+```
+# Status (UNVERIFIED — prior assessment only)
+# - No critical vulnerabilities in production dependencies (unverified)
+# - No high vulnerabilities in production dependencies (unverified)
 # - Moderate: react-router-dom (CVE-2025-68470 bypass) - SSR not used, low risk
 # - High: zod (GHSA-mrhx-c7xc-m3w5) - oversized collections not used, low risk
 # - Dev dependencies: esbuild, minimatch, postcss, tinypool (not in production bundle)
@@ -232,7 +239,7 @@ Not applicable — no backend processing, no subprocessors.
 
 ---
 
-## 11. Compliance Summary (Self-Assessed)
+## 11. Compliance Summary (Self-Assessed — No Independent Audit)
 
 | Standard | Status | Notes |
 |----------|--------|-------|
@@ -242,7 +249,7 @@ Not applicable — no backend processing, no subprocessors.
 | **HIPAA** | N/A | Not a healthcare application |
 | **PCI DSS** | N/A | No payment processing |
 | **OWASP Top 10 (Client-Side)** | 🟡 Mitigations documented | XSS: React auto-escape; CSRF: No backend; Injection: Zod validation; Broken Auth: N/A; etc. |
-| **Dependency Audit** | ✅ Reviewed | `npm audit` run; dev-only vulns; 2 prod deps with low-risk vulns (react-router SSR not used, zod oversized collections not used) |
+| **Dependency Audit** | ⚠️ Unverified | `npm audit` not run in this session; prior claims unverified |
 
 > **Note**: "Compliant" and "Addressed" above reflect **self-assessment based on code review**, not independent third-party audit or certification. No penetration testing or formal compliance certification has been performed.
 

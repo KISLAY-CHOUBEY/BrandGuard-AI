@@ -108,7 +108,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error('Review failed:', error)
       // Reset submission to draft so it can be retried; don't leave it stuck in in_review
       await updateSubmission(submissionId, { status: 'draft' })
-      const failedReview: Review = { ...review, status: 'changes_requested', updatedAt: new Date().toISOString() }
+      const failedReview: Review = { ...review, status: 'changes_requested', error: error instanceof Error ? error.message : String(error), updatedAt: new Date().toISOString() }
       await storage.saveReview(failedReview)
       setState(prev => ({ ...prev, reviews: prev.reviews.map(r => r.id === review.id ? failedReview : r) }))
       throw error

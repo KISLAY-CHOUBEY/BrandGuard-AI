@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenAI, ApiError, ThinkingLevel } from '@google/genai'
 import type { GeminiReviewRequest, GeminiReviewResponse, Severity } from '@/types'
 
 // Schema for Gemini structured output - using type assertion to satisfy SDK types
@@ -26,7 +26,7 @@ const RETRY_CONFIG = {
   maxRetries: 3,
   baseDelayMs: 1000,
   maxDelayMs: 10000,
-  retryableErrors: ['429', 'quota', 'rate limit', 'network', 'fetch', 'timeout', '503', '504', '502']
+  retryableErrors: ['429', 'quota', 'rate limit', 'network', 'fetch', 'timeout', '504', '502']
 } as const
 
 function isRetryableError(error: Error): boolean {
@@ -75,11 +75,29 @@ Be thorough but precise. Only flag actual violations, not stylistic preferences 
 If no violations found, return empty findings array with score 100.`
 }
 
+function mapApiError(error: unknown): { statusCode?: number; message: string } {
+  if (error instanceof ApiError) {
+    // Google's ApiError.message contains JSON.stringify(errorBody).
+    // Parse it to extract the human-readable error.message field.
+    try {
+      const parsed = JSON.parse(error.message) as { error?: { message?: string } }
+      if (parsed.error?.message) {
+        return { statusCode: error.status, message: parsed.error.message }
+      }
+    } catch {
+      // Not valid JSON — fall through to raw message
+    }
+    return { statusCode: error.status, message: error.message }
+  }
+  const err = error instanceof Error ? error : new Error(String(error))
+  return { message: err.message }
+}
+
 export class GeminiReviewService {
-  private client: GoogleGenerativeAI | null = null
+  private client: GoogleGenAI | null = null
   private apiKey: string = ''
 
-  initialize(apiKey: string): void { this.apiKey = apiKey; this.client = new GoogleGenerativeAI(apiKey) }
+  initialize(apiKey: string): void { this.apiKey = apiKey; this.client = new GoogleGenAI({ apiKey }) }
   isConfigured(): boolean { return !!this.apiKey && !!this.client }
 
   /**
@@ -88,52 +106,61 @@ export class GeminiReviewService {
   async testConnection(): Promise<{ success: boolean; message: string }> {
     if (!this.client) return { success: false, message: 'Gemini API not configured' }
     try {
-      const model = this.client.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: {
+      const response = await this.client.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: 'Respond with {"status": "ok"}',
+        config: {
           temperature: 0.1,
           maxOutputTokens: 100,
           responseMimeType: 'application/json',
-          responseSchema: TEST_SCHEMA
+          responseSchema: TEST_SCHEMA as any
         }
       })
-      const result = await model.generateContent('Respond with {"status": "ok"}')
-      const text = result.response.text()
+      const text = response.text
       if (!text) return { success: false, message: 'Empty response from Gemini' }
       const parsed = JSON.parse(text)
       if (parsed.status === 'ok') return { success: true, message: 'Connection successful' }
       return { success: false, message: 'Unexpected response format' }
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error))
-      if (err.message.includes('API_KEY') || err.message.includes('API key')) return { success: false, message: 'Invalid API key' }
-      if (err.message.includes('quota') || err.message.includes('429')) return { success: false, message: 'Rate limited - please try again later' }
-      if (err.message.includes('network') || err.message.includes('fetch')) return { success: false, message: 'Network error - check your connection' }
-      return { success: false, message: err.message || 'Connection test failed' }
+      const mapped = mapApiError(error)
+      switch (mapped.statusCode) {
+        case 401: return { success: false, message: 'Invalid API key' }
+        case 403: return { success: false, message: 'API key forbidden - check permissions' }
+        case 404: return { success: false, message: 'Model not found or not available' }
+        case 429: return { success: false, message: 'Rate limited - please try again later' }
+        case 500: return { success: false, message: 'Gemini API server error - please try again later' }
+      }
+      if (mapped.message.includes('network') || mapped.message.includes('fetch')) {
+        return { success: false, message: 'Network error - check your connection' }
+      }
+      return { success: false, message: mapped.message || 'Connection test failed' }
     }
   }
 
   async reviewContent(request: GeminiReviewRequest): Promise<GeminiReviewResponse> {
     if (!this.client) throw new Error('Gemini API not configured. Please add your API key in Settings.')
 
-    const model = this.client.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      generationConfig: {
-        temperature: 0.1,
-        topP: 0.8,
-        topK: 40,
-        maxOutputTokens: 8192,
-        responseMimeType: 'application/json',
-        responseSchema: REVIEW_SCHEMA
-      }
-    })
-    const prompt = buildPrompt(request)
-
     let lastError: Error | null = null
 
     for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+      const attemptController = new AbortController()
+      const attemptTimeoutId = setTimeout(() => attemptController.abort(new Error('Gemini request timed out after 120 seconds.')), 120000)
       try {
-        const result = await model.generateContent(prompt)
-        const text = result.response.text()
+        const response = await this.client.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: buildPrompt(request),
+          config: {
+            temperature: 0.1,
+            topP: 0.8,
+            topK: 40,
+            maxOutputTokens: 2048,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            responseMimeType: 'application/json',
+            responseSchema: REVIEW_SCHEMA as any,
+            abortSignal: attemptController.signal
+          }
+        })
+        const text = response.text
         if (!text) throw new Error('Empty response from Gemini')
         const parsed = JSON.parse(text) as GeminiReviewResponse
         if (!parsed.findings || !Array.isArray(parsed.findings)) throw new Error('Invalid response: missing findings')
@@ -147,21 +174,37 @@ export class GeminiReviewService {
         return parsed as GeminiReviewResponse
       } catch (error) {
         if (error instanceof SyntaxError) throw new Error('Failed to parse Gemini response as JSON')
-        lastError = error instanceof Error ? error : new Error(String(error))
+        // Use our explicit timeout reason when our own controller aborted,
+        // but preserve any previous non-timeout error (e.g. a 503 ApiError) so
+        // the actual Google error is surfaced when retries are exhausted.
+        if (error instanceof Error && error.name === 'AbortError' && attemptController.signal.reason instanceof Error) {
+          if (!lastError || lastError.name === 'AbortError') {
+            lastError = attemptController.signal.reason
+          }
+          // else: keep the previous non-timeout error
+        } else {
+          lastError = error instanceof Error ? error : new Error(String(error))
+        }
 
         // Don't retry on the last attempt
         if (attempt === RETRY_CONFIG.maxRetries) break
+
+        // Never retry abort errors from our own per-attempt controller
+        if (lastError.name === 'AbortError') break
 
         // Only retry on retryable errors
         if (!isRetryableError(lastError)) break
 
         const delay = calculateDelay(attempt)
-        console.warn(`Gemini API attempt ${attempt + 1} failed, retrying in ${Math.round(delay)}ms:`, lastError.message)
+        console.warn(`Gemini API attempt ${attempt + 1} failed, retrying in ${Math.round(delay)}ms`)
         await new Promise(resolve => setTimeout(resolve, delay))
+      } finally {
+        clearTimeout(attemptTimeoutId)
       }
     }
 
-    throw lastError ?? new Error('Gemini API request failed after retries')
+    const mapped = mapApiError(lastError ?? new Error('Gemini API request failed after retries'))
+    throw new Error(mapped.message)
   }
 }
 

@@ -72,6 +72,7 @@ export interface Review {
   completedAt?: string;
   approvedBy?: string;
   approvedAt?: string;
+  error?: string;
 }
 
 export interface UserSettings {

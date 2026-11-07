@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ClipboardCheck, Search, Eye, Check, X, Flag,
-  AlertTriangle, CheckCircle, Info, Loader2,
+  AlertCircle, AlertTriangle, CheckCircle, Info, Loader2,
   ChevronUp, ChevronDown,
   LucideIcon
 } from 'lucide-react'
@@ -265,7 +265,7 @@ function ReviewDetailModal({
                 <Button variant="outline" onClick={handleRequestChanges} leftIcon={<Flag className="w-4 h-4" />}>
                   Request Changes
                 </Button>
-                <Button onClick={handleApprove} leftIcon={<Check className="w-4 h-4" />}>
+                <Button onClick={handleApprove} leftIcon={<Check className="w-4 h-4" />} disabled={!!review.error}>
                   Approve
                 </Button>
               </>
@@ -307,6 +307,7 @@ function ReviewDetailModal({
               findings={review.findings}
               guidelines={guidelines}
               onUpdateFinding={onUpdateFinding}
+              error={review.error}
               onAcceptAll={() => onAcceptAll(review.id)}
             />
           )}
@@ -326,14 +327,25 @@ function FindingsTab({
   findings,
   guidelines,
   onUpdateFinding,
-  onAcceptAll
+  onAcceptAll,
+  error
 }: {
   findings: ReviewFinding[]
   guidelines: BrandGuideline[]
   onUpdateFinding: (findingId: string, status: ReviewFinding['status']) => void
   onAcceptAll: () => void
+  error?: string
 }) {
   if (findings.length === 0) {
+    if (error) {
+      return (
+        <div className="text-center py-16">
+          <AlertCircle className="w-16 h-16 text-[var(--color-error)] mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Review Failed</h3>
+          <p className="text-[var(--color-text-muted)] mt-1">{error}</p>
+        </div>
+      )
+    }
     return (
       <div className="text-center py-16">
         <CheckCircle className="w-16 h-16 text-[var(--color-success)] mx-auto mb-4" />
