@@ -18,7 +18,7 @@
 ### AI Integration
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| **@google/generative-ai** | 0.12+ | Gemini API client |
+| **@google/genai** | latest | Gemini API client |
 | **Gemini 1.5 Flash** | Latest | Content review model |
 
 ### UI Libraries
@@ -64,23 +64,32 @@
 │  │  │ (AI Review)   │  │ (IndexedDB)   │  │  (Dates)   │  │   │
 │  │  └──────────────┘  └──────────────┘  └────────────┘  │   │
 │  └──────────────────────────────────────────────────────┘   │
-│         │                 │                     │            │
-│         ▼                 ▼                     ▼            │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │                  External APIs                          │   │
-│  │  ┌──────────────────────────────────────────────────┐  │   │
-│  │  │          Google Gemini API (REST)                 │  │   │
-│  │  └──────────────────────────────────────────────────┘  │   │
-│  └──────────────────────────────────────────────────────┘   │
 │         │                                                 │   │
 │         ▼                                                 ▼   │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │                  Local Storage                          │   │
-│  │  ┌──────────────────────────────────────────────────┐  │   │
-│  │  │          IndexedDB (thronecaptures-db)            │  │   │
-│  │  └──────────────────────────────────────────────────┘  │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+│  │                  Network Layer                          │   │
+│  │  ┌──────────────────────┐  ┌────────────────────────┐  │   │
+│  │  │  /api/gemini (same-  │  │  Local Storage          │  │   │
+│  │  │   origin proxy)      │  │  IndexedDB             │  │   │
+│  │  └──────────┬───────────┘  │  (thronecaptures-db)    │  │   │
+│  └─────────────┼──────────────└─────────────────────────┘   │
+└────────────────┼─────────────────────────────────────────────┘
+               ▼
+        ┌──────────────────────────────────────────────────────┐
+        │                   Serverless Function                 │
+        │  ┌────────────────────────────────────────────────┐  │
+        │  │  /api/gemini (Vercel Function)                  │  │
+        │  │  • Rate limiting: 10 req/min per IP             │  │
+        │  │  • Reads GEMINI_API_KEY from env vars          │  │
+        │  │  • Calls Google Gemini API                      │  │
+        │  │  • Returns structured response                  │  │
+        │  └────────────────────────────────────────────────┘  │
+        └──────────────────────────────────────────────────────┘
+               │
+               ▼
+        ┌──────────────────────────────────────────────────────┐
+        │              Google Gemini API (REST)                 │
+        └──────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -146,7 +155,7 @@ User clicks "Approve" → AppContext.approveReview(reviewId)
 { id, reviewId, guidelineId, ruleId, severity, location{start,end,context}, explanation, suggestedCorrection, guidelineReference, status, createdAt, resolvedAt? }
 
 // Settings
-{ id: "user-settings", geminiApiKey, defaultGuidelineIds[], autoSave, theme }
+{ id: "user-settings", defaultGuidelineIds[], autoSave, theme }
 ```
 
 ### Indexes
@@ -187,15 +196,15 @@ responseSchema: REVIEW_SCHEMA  // Enforced JSON structure
 ## 6. Security Considerations
 
 ### API Key Management
-- **Stored in IndexedDB** — Encrypted at rest by browser
+- **Stored in Vercel Environment Variables** — Server-side only, never exposed to client
 - **Never logged** — No console output of keys
-- **User-controlled** — Clearable via Settings > Clear All Data
-- **Browser-visible** — VITE_ prefix means accessible in DevTools (documented limitation)
+- **Admin-controlled** — Configured in Vercel Project Settings → Environment Variables
+- **Not browser-visible** — API key never reaches the frontend
 
 ### Content Privacy
-- Content sent **only to Gemini API** (Google)
+- Content sent **only to `/api/gemini` proxy** (same-origin) → Google Gemini API
 - No telemetry, analytics, or third-party tracking
-- No backend = no server-side data collection
+- Serverless backend for Gemini API proxy — API key stays on server
 - HTTPS enforced in production (Vercel)
 
 ### CSP Headers (Production)
@@ -205,7 +214,7 @@ Content-Security-Policy:
   script-src 'self' 'unsafe-inline';
   style-src 'self' 'unsafe-inline' fonts.googleapis.com;
   font-src fonts.gstatic.com;
-  connect-src 'self' generativelanguage.googleapis.com;
+  connect-src 'self';
   img-src 'self' data:;
 ```
 
@@ -265,7 +274,7 @@ npm run build  # tsc + vite build → dist/
 ```
 
 ### Environment Variables
-- `VITE_GEMINI_API_KEY` — Optional default (user can override in Settings)
+- `GEMINI_API_KEY` — Required in Vercel Project Settings → Environment Variables (server-side only)
 
 ---
 

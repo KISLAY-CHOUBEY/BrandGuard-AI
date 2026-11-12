@@ -2,14 +2,14 @@ import React from 'react'
 import { Link, useLocation, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, BookOpen, FileText, ClipboardCheck, History, Settings,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, BarChart3
 } from 'lucide-react'
 import { useApp } from '@/context/useApp'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 
 const navIcons = {
-  LayoutDashboard, BookOpen, FileText, ClipboardCheck, History, Settings
+  LayoutDashboard, BookOpen, FileText, ClipboardCheck, History, Settings, BarChart3
 }
 
 interface SidebarProps {

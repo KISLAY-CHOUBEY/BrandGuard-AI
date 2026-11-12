@@ -35,7 +35,7 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Gemini Integration | @google/generative-ai SDK, Gemini 1.5 Flash | ✅ Complete |
+| Gemini Integration | @google/genai SDK, Gemini 1.5 Flash | ✅ Complete |
 | Structured Output | JSON schema enforcement via responseSchema | ✅ Complete |
 | Prompt Engineering | Dynamic prompt with all guidelines, rules, examples | ✅ Complete |
 | Findings Extraction | Severity, location, explanation, correction, reference | ✅ Complete |
@@ -80,8 +80,7 @@
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Gemini API Key | Secure input (show/hide), local IndexedDB storage | ✅ Complete |
-| Test Connection | Validates API key against Gemini | ✅ Complete |
+| Test Connection | Validates server-side Gemini API configuration | ✅ Complete |
 | Theme Selector | Light/Dark/System with instant preview | ✅ Complete |
 | Data Management | Clear All Data with confirmation | ✅ Complete |
 | Theme Persistence | localStorage + system preference detection | ✅ Complete |

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FileText, ClipboardCheck, BookOpen,
-  ArrowRight, Plus, Clock, CheckCircle, Settings, History
+  ArrowRight, Plus, Clock, CheckCircle, Settings, History,
+  Sparkles, Target, Zap
 } from 'lucide-react'
 import { useApp } from '@/context/useApp'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
@@ -86,6 +87,81 @@ export function Dashboard() {
           ))}
         </div>
       </Reveal>
+
+      {/* Guided Onboarding - shows when user has no guidelines or no submissions */}
+      {(guidelines.length === 0 || submissions.length === 0) && (
+        <Reveal delay={0.15}>
+          <Card variant="outlined" className="border-[var(--color-accent-primary)]/50 bg-[var(--color-accent-bg)]/10">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-[var(--color-accent-primary)]/20 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-6 h-6 text-[var(--color-accent-primary)]" aria-hidden="true" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <span>Welcome to BrandGuard AI</span>
+                    <Badge variant="accent" size="sm">Get Started</Badge>
+                  </h3>
+                  <p className="text-[var(--color-text-secondary)] mt-2 mb-4">
+                    {guidelines.length === 0
+                      ? 'Start by creating your first brand guideline to define the rules for AI review.'
+                      : 'Great! Now submit some content to see AI-powered brand consistency review in action.'}
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {guidelines.length === 0 && (
+                      <Button leftIcon={<Plus className="w-4 h-4" />} asChild>
+                        <Link to="/guidelines">Create First Guideline</Link>
+                      </Button>
+                    )}
+                    {guidelines.length > 0 && submissions.length === 0 && (
+                      <Button leftIcon={<FileText className="w-4 h-4" />} asChild>
+                        <Link to="/submit">Submit Content for Review</Link>
+                      </Button>
+                    )}
+                    <Button variant="outline" leftIcon={<Target className="w-4 h-4" />} asChild>
+                      <Link to="/settings">Configure Settings</Link>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3-Step Workflow Guide */}
+              <div className="mt-6 pt-6 border-t border-[var(--color-border)]">
+                <p className="text-sm font-medium text-[var(--color-text-muted)] mb-4">Your workflow:</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-info-bg)] text-[var(--color-info)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">1</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Define Guidelines</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">Create rules for tone, terminology, style, and formatting</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-accent-bg)] text-[var(--color-accent-primary)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">2</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Submit Content</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">Paste your content and select which guidelines to apply</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-success-bg)] text-[var(--color-success)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">3</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Review & Approve</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">AI finds issues, you accept/reject/edit, then approve</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Reveal>
+      )}
 
       <Reveal delay={0.2}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

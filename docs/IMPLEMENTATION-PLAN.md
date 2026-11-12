@@ -22,7 +22,7 @@
 - [x] Configure ESLint, TypeScript, Prettier
 - [x] Set up path aliases (`@/`, `@components/`, etc.)
 - [x] Configure Git, `.gitignore`, `.vercelignore`
-- [x] Create `.env.example` with `VITE_GEMINI_API_KEY`
+- [x] Create `.env.example` with `GEMINI_API_KEY`
 
 ### 2.2 Design System
 - [x] CSS custom properties (colors, spacing, typography, shadows)
@@ -109,7 +109,7 @@
 - [x] Export placeholder
 
 ### 4.3 Settings
-- [x] API Key input (show/hide, test connection)
+- [x] Test Connection button (validates server-side config)
 - [x] Security notice documentation
 - [x] Theme selector (light/dark/system cards)
 - [x] Data management (clear all with confirmation)

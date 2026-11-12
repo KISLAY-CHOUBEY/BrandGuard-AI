@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FileText, Send, Loader2, AlertCircle,
-  Eye, Plus
+  Eye, Plus, Clock, CheckCircle, Sparkles, Target, Zap
 } from 'lucide-react'
 import { useApp } from '@/context/useApp'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
@@ -22,6 +22,7 @@ export function Submit() {
   const [viewingSubmission, setViewingSubmission] = useState<string | null>(null)
   const [reviewingSubmission, setReviewingSubmission] = useState<string | null>(null)
   const [isReviewing, setIsReviewing] = useState(false)
+  const [reviewProgress, setReviewProgress] = useState<{ step: number; message: string } | null>(null)
 
   const activeGuidelines = guidelines.filter(g => g.isActive)
 
@@ -30,24 +31,117 @@ export function Submit() {
     setShowSubmitModal(false)
   }
 
+  const reviewSteps = [
+    { step: 1, message: 'Analyzing content against guidelines...' },
+    { step: 2, message: 'Checking tone & voice consistency...' },
+    { step: 3, message: 'Validating terminology & formatting...' },
+    { step: 4, message: 'Generating findings & suggestions...' },
+    { step: 5, message: 'Finalizing review results...' }
+  ]
+
   const handleStartReview = async (submissionId: string) => {
     setReviewingSubmission(submissionId)
     setIsReviewing(true)
+    setReviewProgress({ step: 0, message: 'Starting review...' })
+
+    // Simulate progress updates
+    let currentStep = 0
+    const progressInterval = setInterval(() => {
+      if (currentStep < reviewSteps.length - 1) {
+        currentStep++
+        setReviewProgress(reviewSteps[currentStep])
+      }
+    }, 800)
+
     try {
       await startReview(submissionId)
+      setReviewProgress({ step: reviewSteps.length, message: 'Review complete!' })
     } catch (error) {
       console.error('Review failed:', error)
+      setReviewProgress({ step: -1, message: 'Review failed. Please try again.' })
     } finally {
-      setIsReviewing(false)
-      setReviewingSubmission(null)
+      clearInterval(progressInterval)
+      setTimeout(() => {
+        setIsReviewing(false)
+        setReviewingSubmission(null)
+        setReviewProgress(null)
+      }, 1000)
     }
   }
 
   const recentSubmissions = [...submissions].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
   const viewingSubmissionItem = submissions.find(s => s.id === viewingSubmission)
 
+  // Review Progress Component
+  const ReviewProgressIndicator = () => {
+    if (!reviewProgress) return null
+    const isError = reviewProgress.step === -1
+    const isComplete = reviewProgress.step === reviewSteps.length
+    const progressPercent = isError ? 0 : isComplete ? 100 : (reviewProgress.step / reviewSteps.length) * 100
+
+    return (
+      <Card variant="outlined" className={`border-[var(--color-accent-primary)]/50 bg-[var(--color-accent-bg)]/10 animate-slide-up ${isError ? 'border-[var(--color-error)]/50 bg-[var(--color-error-bg)]/10' : ''}`}>
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[var(--color-accent-primary)]/20 flex items-center justify-center flex-shrink-0">
+              {isError ? (
+                <AlertCircle className="w-6 h-6 text-[var(--color-error)]" />
+              ) : isComplete ? (
+                <CheckCircle className="w-6 h-6 text-[var(--color-success)]" />
+              ) : (
+                <Loader2 className="w-6 h-6 text-[var(--color-accent-primary)] animate-spin" />
+              )}
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-medium text-[var(--color-text-primary)]">
+                  {isError ? 'Review Failed' : isComplete ? 'Review Complete' : 'AI Review in Progress'}
+                </p>
+                {!isError && !isComplete && (
+                  <span className="text-sm text-[var(--color-text-muted)]">{Math.round(progressPercent)}%</span>
+                )}
+              </div>
+              <p className="text-[var(--color-text-secondary)] text-sm mb-3">{reviewProgress.message}</p>
+              <div className="w-full h-2 bg-[var(--color-bg-tertiary)] rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ease-out ${
+                    isError ? 'bg-[var(--color-error)]' : isComplete ? 'bg-[var(--color-success)]' : 'bg-[var(--color-accent-primary)]'
+                  }`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              {!isError && !isComplete && (
+                <div className="mt-3 flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
+                  {reviewSteps.map((step, idx) => (
+                    <span
+                      key={step.step}
+                      className={`flex items-center gap-1 transition-colors ${
+                        idx < reviewProgress.step ? 'text-[var(--color-success)]' :
+                        idx === reviewProgress.step ? 'text-[var(--color-accent-primary)] font-medium' :
+                        'text-[var(--color-text-muted)]'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        idx < reviewProgress.step ? 'bg-[var(--color-success)] text-white' :
+                        idx === reviewProgress.step ? 'bg-[var(--color-accent-primary)] text-white' :
+                        'bg-[var(--color-bg-tertiary)]'
+                      }`}>
+                        {step.step}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
+      {reviewProgress && <Reveal delay={0}><ReviewProgressIndicator /></Reveal>}
       <Reveal delay={0}>
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -63,12 +157,59 @@ export function Submit() {
 
       {activeGuidelines.length === 0 && (
         <Reveal delay={0.1}>
-          <Card variant="outlined" className="border-[var(--color-warning)]/50 bg-[var(--color-warning-bg)]">
-            <CardContent className="flex items-center gap-4">
-              <AlertCircle className="w-6 h-6 text-[var(--color-warning)] flex-shrink-0" />
-              <div>
-                <p className="font-medium text-[var(--color-text-primary)]">No active guidelines found</p>
-                <p className="text-sm text-[var(--color-text-secondary)]">Create at least one active guideline in the <Link to="/guidelines" className="text-[var(--color-accent-primary)] hover:underline">Guidelines</Link> section before submitting content.</p>
+          <Card variant="outlined" className="border-[var(--color-accent-primary)]/50 bg-[var(--color-accent-bg)]/10">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-[var(--color-accent-primary)]/20 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-6 h-6 text-[var(--color-accent-primary)]" aria-hidden="true" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <span>Welcome to BrandGuard AI</span>
+                    <Badge variant="accent" size="sm">Get Started</Badge>
+                  </h3>
+                  <p className="text-[var(--color-text-secondary)] mt-2 mb-4">
+                    Create your first brand guideline to define the rules for AI-powered content review.
+                    Once you have active guidelines, you can submit content for automated consistency checking.
+                  </p>
+                  <Button leftIcon={<Plus className="w-4 h-4" />} asChild>
+                    <Link to="/guidelines">Create First Guideline</Link>
+                  </Button>
+                </div>
+              </div>
+
+              {/* 3-Step Workflow Guide */}
+              <div className="mt-6 pt-6 border-t border-[var(--color-border)]">
+                <p className="text-sm font-medium text-[var(--color-text-muted)] mb-4">Your workflow:</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-info-bg)] text-[var(--color-info)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">1</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Define Guidelines</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">Create rules for tone, terminology, style, and formatting</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-accent-bg)] text-[var(--color-accent-primary)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">2</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Submit Content</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">Paste your content and select which guidelines to apply</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-success-bg)] text-[var(--color-success)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">3</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Review & Approve</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">AI finds issues, you accept/reject/edit, then approve</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -208,8 +349,6 @@ function SubmissionCard({
     </div>
   )
 }
-
-import { Clock } from 'lucide-react'
 
 function SubmitModal({
   isOpen,

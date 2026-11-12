@@ -1,11 +1,24 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React, { useCallback } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Menu, Bell, User, LogOut, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { useApp } from '@/context/useApp'
 
 export function Header({ onMenuClick, sidebarCollapsed }: { onMenuClick: () => void; sidebarCollapsed: boolean }) {
+  const { isDemoMode, switchToDemo, addToast } = useApp()
+  const navigate = useNavigate()
   const [showUserMenu, setShowUserMenu] = React.useState(false)
+
+  const handleTryDemo = useCallback(async () => {
+    try {
+      await switchToDemo()
+      navigate('/demo')
+    } catch (error) {
+      // Error already logged in switchToDemo; user stays on current page
+      addToast({ type: 'error', message: `Failed to enter demo mode: ${error instanceof Error ? error.message : String(error)}` })
+    }
+  }, [switchToDemo, navigate, addToast])
   const [showNotifications, setShowNotifications] = React.useState(false)
 
   const notifications = [
@@ -37,6 +50,16 @@ export function Header({ onMenuClick, sidebarCollapsed }: { onMenuClick: () => v
           >
             <Menu className="w-5 h-5" />
           </Button>
+          {!isDemoMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTryDemo}
+              className="hidden sm:flex"
+            >
+              Try Demo
+            </Button>
+          )}
         </div>
 
         {/* Right: Notifications, User */}

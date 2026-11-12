@@ -127,10 +127,12 @@ const makeReview = (overrides: Partial<Record<string, unknown>> = {}) => ({
   submissionId: 'submission-1',
   guidelineIds: ['guideline-1'],
   findings: [],
+  conflicts: [],
   overallScore: 0,
   status: 'in_review' as const,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+  events: [],
   ...overrides,
 })
 
@@ -386,5 +388,82 @@ describe('storage - generateId', () => {
     expect(id1).not.toBe(id2)
     expect(id1).toMatch(/\d+-.*/)
     expect(id2).toMatch(/\d+-.*/)
+  })
+})
+
+describe('storage - export/import', () => {
+  const setupTestData = async () => {
+    await storage.saveGuideline(makeGuideline({ id: 'g1', name: 'Guideline 1' }))
+    await storage.saveSubmission(makeSubmission({ id: 's1', title: 'Submission 1' }))
+    await storage.saveReview(makeReview({ id: 'r1', submissionId: 's1' }))
+    await storage.saveFinding(makeFinding({ id: 'f1', reviewId: 'r1' }))
+    await storage.saveEvent({ id: 'e1', reviewId: 'r1', type: 'review_started', timestamp: new Date().toISOString() } as any)
+    await storage.saveSettings({ geminiApiKey: 'test-key', theme: 'dark' })
+  }
+
+  it('should export all data', async () => {
+    await setupTestData()
+    const exportData = await storage.exportAllData()
+
+    expect(exportData.guidelines).toHaveLength(1)
+    expect(exportData.submissions).toHaveLength(1)
+    expect(exportData.reviews).toHaveLength(1)
+    expect(exportData.findings).toHaveLength(1)
+    expect(exportData.events).toHaveLength(1)
+    expect(exportData.settings.theme).toBe('dark')
+    expect(exportData.settings.geminiApiKey).toBe('') // API key should not be exported
+    expect(exportData.exportedAt).toBeDefined()
+    expect(exportData.version).toBe(3)
+  })
+
+  it('should import all data', async () => {
+    await setupTestData()
+    const exportData = await storage.exportAllData()
+
+    // Clear all data
+    await storage.clearAllData()
+
+    // Import the data
+    await storage.importAllData(exportData)
+
+    // Verify data was imported
+    const guidelines = await storage.getGuidelines()
+    const submissions = await storage.getSubmissions()
+    const reviews = await storage.getReviews()
+    const findings = await storage.getFindings('r1')
+    const events = await storage.getEvents('r1')
+    const settings = await storage.getSettings()
+
+    expect(guidelines).toHaveLength(1)
+    expect(submissions).toHaveLength(1)
+    expect(reviews).toHaveLength(1)
+    expect(findings).toHaveLength(1)
+    expect(events).toHaveLength(1)
+    expect(settings.theme).toBe('dark')
+  })
+
+  it('should preserve current API key on import', async () => {
+    await setupTestData()
+    // Override with current key after setup
+    await storage.saveSettings({ geminiApiKey: 'current-key' })
+    const exportData = await storage.exportAllData()
+
+    // Clear and import
+    await storage.clearAllData()
+    await storage.importAllData(exportData)
+
+    const settings = await storage.getSettings()
+    expect(settings.geminiApiKey).toBe('current-key') // Should preserve current key
+  })
+
+  it('should handle empty data export', async () => {
+    await storage.clearAllData()
+    const exportData = await storage.exportAllData()
+
+    expect(exportData.guidelines).toHaveLength(0)
+    expect(exportData.submissions).toHaveLength(0)
+    expect(exportData.reviews).toHaveLength(0)
+    expect(exportData.findings).toHaveLength(0)
+    expect(exportData.events).toHaveLength(0)
   })
 })

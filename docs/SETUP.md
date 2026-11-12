@@ -46,16 +46,17 @@ added 280 packages in 15s
 ### 2.3 Environment Configuration
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
-Edit `.env` and add your Gemini API key:
+Edit `.env.local` and add your Gemini API key (for local development only):
 
 ```env
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 > **Note**: Get your API key from [Google AI Studio](https://aistudio.google.com/apikey)
+> **Important**: The API key is now stored server-side. For local development, use `.env.local`. For production, set `GEMINI_API_KEY` in Vercel Project Settings → Environment Variables. The frontend never receives or stores the API key.
 
 ---
 
@@ -63,17 +64,24 @@ VITE_GEMINI_API_KEY=your_gemini_api_key_here
 
 ### 3.1 Start Development Server
 
+**Full-stack (with API proxy):**
+```bash
+npm run dev:full
+```
+Server starts at `http://localhost:3000` (Express proxy on 3000, Vite on 3001)
+
+**Frontend only (no API):**
 ```bash
 npm run dev
 ```
-
-Server starts at `http://localhost:5173`
+Server starts at `http://localhost:3001` (Vite only, no API routes)
 
 ### 3.2 Available Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start dev server with HMR |
+| `npm run dev` | Start Vite dev server only (port 3001, no API) |
+| `npm run dev:full` | Start full-stack dev server (Vite 3001 + Express proxy 3000) |
 | `npm run build` | Production build to `dist/` |
 | `npm run preview` | Preview production build locally |
 | `npm run typecheck` | TypeScript type checking |
@@ -151,7 +159,7 @@ ThroneCaptures/
 | `react` | 18.2 | UI library |
 | `react-dom` | 18.2 | DOM renderer |
 | `react-router-dom` | 6.20 | Routing |
-| `@google/generative-ai` | 0.10 | Gemini API |
+| `@google/genai` | latest | Gemini API |
 | `idb` | 8.0 | IndexedDB wrapper |
 | `framer-motion` | 10.16 | Animations |
 | `lucide-react` | 0.294 | Icons |
@@ -181,25 +189,23 @@ ThroneCaptures/
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `VITE_GEMINI_API_KEY` | Google Gemini API key | `AIzaSy...` |
+| `GEMINI_API_KEY` | Google Gemini API key (server-side only) | `AIzaSy...` |
 
 ### 6.2 Optional
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_APP_TITLE` | `ThroneCaptures` | App title in header |
-| `VITE_API_BASE_URL` | `https://generativelanguage.googleapis.com` | Gemini endpoint |
 
 ### 6.3 .env.example
 
 ```env
-# Google Gemini API Key
+# Google Gemini API Key (server-side only)
 # Get yours at: https://aistudio.google.com/apikey
-VITE_GEMINI_API_KEY=
+GEMINI_API_KEY=
 
 # Optional: App customization
 VITE_APP_TITLE=ThroneCaptures
-VITE_API_BASE_URL=https://generativelanguage.googleapis.com
 ```
 
 ---
@@ -241,10 +247,11 @@ VITE_API_BASE_URL=https://generativelanguage.googleapis.com
 ### 8.1 Port Already in Use
 
 ```bash
-# Kill process on port 5173
-npx kill-port 5173
-# Or use different port
-npm run dev -- --port 3000
+# Kill process on port 3000 (full-stack) or 3001 (Vite only)
+npx kill-port 3000
+npx kill-port 3001
+# Or use different port for Vite
+npm run dev -- --port 3002
 ```
 
 ### 8.2 TypeScript Errors After Pull
@@ -289,8 +296,8 @@ npm run build
 
 1. Push to GitHub
 2. Import in Vercel
-3. Add `VITE_GEMINI_API_KEY` in Environment Variables
-4. Deploy
+3. Add `GEMINI_API_KEY` in Vercel Project Settings → Environment Variables
+4. Deploy — no build-time env vars required; the API key is configured server-side
 
 ### 9.2 Build Output
 
@@ -359,13 +366,13 @@ curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5
 
 - [ ] Node.js 20+ installed
 - [ ] `npm install` completed without errors
-- [ ] `.env` file created with valid `VITE_GEMINI_API_KEY`
-- [ ] `npm run dev` starts successfully
+- [ ] `.env.local` file created with valid `GEMINI_API_KEY`
+- [ ] `npm run dev:full` starts successfully (or `npm run dev` for frontend only)
 - [ ] `npm run typecheck` passes
 - [ ] `npm run lint` passes
 - [ ] `npm run build` produces `dist/`
-- [ ] App loads at `http://localhost:5173`
-- [ ] Settings page accepts API key
+- [ ] App loads at `http://localhost:3000` (or `http://localhost:3001` for frontend only)
+- [ ] Settings page shows "Test Connection" button (no API key input)
 - [ ] "Test Connection" shows success
 - [ ] Can create guideline and submission
 - [ ] AI review works end-to-end
@@ -376,9 +383,10 @@ curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5
 
 ```bash
 # Development
-npm run dev                    # Start dev server
-npm run dev -- --host         # Expose on network
-npm run dev -- --port 3000    # Custom port
+npm run dev                    # Start Vite dev server (port 3001)
+npm run dev:full               # Start full-stack dev server (Vite 3001 + Express proxy 3000)
+npm run dev -- --host          # Expose on network
+npm run dev -- --port 3002     # Custom port for Vite
 
 # Quality
 npm run typecheck              # TypeScript check

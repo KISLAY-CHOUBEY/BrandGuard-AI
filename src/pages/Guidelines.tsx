@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import {
   Plus, Filter, Search, Edit, Trash2, Eye,
-  BookOpen, Type, Accessibility, Layers, Mic, Scale, Settings
+  BookOpen, Type, Accessibility, Layers, Mic, Scale, Settings,
+  Target, Sparkles
 } from 'lucide-react'
 import { useApp } from '@/context/useApp'
 import { generateId } from '@/services/storage'
@@ -128,21 +129,74 @@ export function Guidelines() {
       </Reveal>
 
       <Reveal delay={0.2}>
+        {/* Guided Onboarding - shows when user has no guidelines */}
+        {guidelines.length === 0 && (
+          <Card variant="outlined" className="border-[var(--color-accent-primary)]/50 bg-[var(--color-accent-bg)]/10 mb-6">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-[var(--color-accent-primary)]/20 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-6 h-6 text-[var(--color-accent-primary)]" aria-hidden="true" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+                    <span>Welcome to Brand Guidelines</span>
+                    <Badge variant="accent" size="sm">Get Started</Badge>
+                  </h3>
+                  <p className="text-[var(--color-text-secondary)] mt-2 mb-4">
+                    Create your first brand guideline to define the rules for AI-powered content review.
+                    Guidelines help ensure consistency across tone, terminology, formatting, and more.
+                  </p>
+                  <Button leftIcon={<Plus className="w-4 h-4" />} onClick={() => setShowCreateModal(true)}>
+                    Create Your First Guideline
+                  </Button>
+                </div>
+              </div>
+
+              {/* 3-Step Workflow Guide */}
+              <div className="mt-6 pt-6 border-t border-[var(--color-border)]">
+                <p className="text-sm font-medium text-[var(--color-text-muted)] mb-4">Your workflow:</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-info-bg)] text-[var(--color-info)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">1</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Define Guidelines</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">Create rules for tone, terminology, style, and formatting</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-accent-bg)] text-[var(--color-accent-primary)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">2</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Submit Content</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">Paste your content and select which guidelines to apply</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-4 bg-[var(--color-bg-secondary)] rounded-lg">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--color-success-bg)] text-[var(--color-success)] flex items-center justify-center flex-shrink-0">
+                      <span className="font-bold text-lg">3</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-[var(--color-text-primary)]">Review & Approve</p>
+                      <p className="text-sm text-[var(--color-text-muted)] mt-1">AI finds issues, you accept/reject/edit, then approve</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Guidelines Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredGuidelines.length === 0 ? (
+        {filteredGuidelines.length === 0 && guidelines.length > 0 ? (
           <div className="col-span-full">
             <EmptyState
               icon={BookOpen}
-              title={guidelines.length === 0 ? 'No guidelines yet' : 'No guidelines match your filters'}
-              description={guidelines.length === 0
-                ? 'Create your first brand guideline to start reviewing content for consistency.'
-                : 'Try adjusting your search or filter criteria.'}
-              action={guidelines.length === 0 ? (
-                <Button leftIcon={<Plus className="w-4 h-4" />} onClick={() => setShowCreateModal(true)}>
-                  Create Your First Guideline
-                </Button>
-              ) : null}
+              title="No guidelines match your filters"
+              description="Try adjusting your search or filter criteria."
             />
           </div>
         ) : (

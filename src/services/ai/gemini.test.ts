@@ -1,98 +1,83 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { GeminiReviewService } from './gemini'
+import { geminiService } from './gemini'
 
-// Mock @google/generative-ai
-const mocks = vi.hoisted(() => {
-  const mockGenerateContent = vi.fn()
-  const mockGetGenerativeModel = vi.fn(() => ({ generateContent: mockGenerateContent }))
-  const mockGoogleGenerativeAI = vi.fn(() => ({ getGenerativeModel: mockGetGenerativeModel }))
-  return { mockGenerateContent, mockGetGenerativeModel, mockGoogleGenerativeAI }
-})
+// Store original fetch
+const originalFetch = global.fetch
 
-vi.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: mocks.mockGoogleGenerativeAI,
-}))
-
-describe('GeminiReviewService', () => {
-  let service: GeminiReviewService
-
+describe('FrontendGeminiService', () => {
   beforeEach(() => {
-    service = new GeminiReviewService()
     vi.clearAllMocks()
+    global.fetch = vi.fn()
+    geminiService.resetForTesting()
   })
 
   afterEach(() => {
+    global.fetch = originalFetch
     vi.restoreAllMocks()
   })
 
   describe('initialize', () => {
-    it('should configure the service with an API key', () => {
-      service.initialize('test-api-key')
-      expect(service.isConfigured()).toBe(true)
-      expect(mocks.mockGoogleGenerativeAI).toHaveBeenCalledWith('test-api-key')
+    it('should configure the service', () => {
+      geminiService.initialize()
+      expect(geminiService.isConfigured()).toBe(true)
     })
 
     it('should report not configured before initialization', () => {
-      expect(service.isConfigured()).toBe(false)
+      // Create a fresh service instance by not calling initialize
+      // Since we can't reset the singleton, this test runs first in the describe block
+      // and beforeEach doesn't call initialize anymore
+      expect(geminiService.isConfigured()).toBe(false)
     })
   })
 
   describe('testConnection', () => {
     it('should return success when API responds with ok status', async () => {
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => '{"status": "ok"}' } })
-      service.initialize('test-api-key')
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, message: 'Connection successful' })
+      })
+      geminiService.initialize()
 
-      const result = await service.testConnection()
+      const result = await geminiService.testConnection()
 
       expect(result.success).toBe(true)
       expect(result.message).toBe('Connection successful')
+      expect(global.fetch).toHaveBeenCalledWith('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'test' })
+      })
     })
 
-    it('should return error for invalid API key', async () => {
-      mocks.mockGenerateContent.mockRejectedValueOnce(new Error('API_KEY_INVALID'))
-      service.initialize('bad-key')
+    it('should return error for invalid API key from API', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'Invalid API key' })
+      })
+      geminiService.initialize()
 
-      const result = await service.testConnection()
+      const result = await geminiService.testConnection()
 
       expect(result.success).toBe(false)
       expect(result.message).toBe('Invalid API key')
     })
 
-    it('should return error for rate limiting', async () => {
-      mocks.mockGenerateContent.mockRejectedValueOnce(new Error('quota exceeded'))
-      service.initialize('test-api-key')
-
-      const result = await service.testConnection()
-
-      expect(result.success).toBe(false)
-      expect(result.message).toBe('Rate limited - please try again later')
-    })
-
     it('should return error for network failure', async () => {
-      mocks.mockGenerateContent.mockRejectedValueOnce(new Error('network fetch failed'))
-      service.initialize('test-api-key')
+      global.fetch = vi.fn().mockRejectedValue(new Error('network fetch failed'))
+      geminiService.initialize()
 
-      const result = await service.testConnection()
+      const result = await geminiService.testConnection()
 
       expect(result.success).toBe(false)
       expect(result.message).toBe('Network error - check your connection')
     })
 
     it('should return error when not configured', async () => {
-      const result = await service.testConnection()
+      // Don't call initialize - service should be unconfigured
+      const result = await geminiService.testConnection()
 
       expect(result.success).toBe(false)
       expect(result.message).toBe('Gemini API not configured')
-    })
-
-    it('should return error for empty response', async () => {
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => '' } })
-      service.initialize('test-api-key')
-
-      const result = await service.testConnection()
-
-      expect(result.success).toBe(false)
-      expect(result.message).toBe('Empty response from Gemini')
     })
   })
 
@@ -118,7 +103,7 @@ describe('GeminiReviewService', () => {
       },
     ]
 
-    it('should parse a valid Gemini response', async () => {
+    it('should parse a valid API response', async () => {
       const mockResponse = {
         findings: [
           {
@@ -134,10 +119,13 @@ describe('GeminiReviewService', () => {
         overallScore: 85,
         summary: 'Good content overall',
       }
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => JSON.stringify(mockResponse) } })
-      service.initialize('test-api-key')
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockResponse
+      })
+      geminiService.initialize()
 
-      const result = await service.reviewContent({
+      const result = await geminiService.reviewContent({
         content: 'test content',
         guidelines: defaultGuidelines,
         contentType: 'text',
@@ -147,6 +135,16 @@ describe('GeminiReviewService', () => {
       expect(result.findings).toHaveLength(1)
       expect(result.findings[0].severity).toBe('high')
       expect(result.summary).toBe('Good content overall')
+      expect(global.fetch).toHaveBeenCalledWith('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'review',
+          content: 'test content',
+          guidelines: defaultGuidelines,
+          contentType: 'text'
+        })
+      })
     })
 
     it('should clamp overallScore to 0-100 range', async () => {
@@ -155,10 +153,13 @@ describe('GeminiReviewService', () => {
         overallScore: 150,
         summary: 'test',
       }
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => JSON.stringify(mockResponse) } })
-      service.initialize('test-api-key')
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockResponse
+      })
+      geminiService.initialize()
 
-      const result = await service.reviewContent({
+      const result = await geminiService.reviewContent({
         content: 'test',
         guidelines: [],
         contentType: 'text',
@@ -173,10 +174,13 @@ describe('GeminiReviewService', () => {
         overallScore: -10,
         summary: 'test',
       }
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => JSON.stringify(mockResponse) } })
-      service.initialize('test-api-key')
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockResponse
+      })
+      geminiService.initialize()
 
-      const result = await service.reviewContent({
+      const result = await geminiService.reviewContent({
         content: 'test',
         guidelines: [],
         contentType: 'text',
@@ -201,10 +205,13 @@ describe('GeminiReviewService', () => {
         overallScore: 50,
         summary: 'test',
       }
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => JSON.stringify(mockResponse) } })
-      service.initialize('test-api-key')
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockResponse
+      })
+      geminiService.initialize()
 
-      const result = await service.reviewContent({
+      const result = await geminiService.reviewContent({
         content: 'test',
         guidelines: defaultGuidelines,
         contentType: 'text',
@@ -213,36 +220,31 @@ describe('GeminiReviewService', () => {
       expect(result.findings[0].severity).toBe('medium')
     })
 
-    it('should throw on empty response from Gemini', async () => {
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => '' } })
-      service.initialize('test-api-key')
+    it('should throw on API error response', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'Rate limited' })
+      })
+      geminiService.initialize()
 
       await expect(
-        service.reviewContent({ content: 'test', guidelines: [], contentType: 'text' })
-      ).rejects.toThrow('Empty response from Gemini')
+        geminiService.reviewContent({ content: 'test', guidelines: [], contentType: 'text' })
+      ).rejects.toThrow('Rate limited')
     })
 
-    it('should throw on invalid JSON response', async () => {
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => 'not json' } })
-      service.initialize('test-api-key')
+    it('should throw on network error', async () => {
+      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+      geminiService.initialize()
 
       await expect(
-        service.reviewContent({ content: 'test', guidelines: [], contentType: 'text' })
-      ).rejects.toThrow('Failed to parse Gemini response as JSON')
-    })
-
-    it('should throw on missing findings array', async () => {
-      mocks.mockGenerateContent.mockResolvedValueOnce({ response: { text: () => JSON.stringify({ overallScore: 50, summary: 'test' }) } })
-      service.initialize('test-api-key')
-
-      await expect(
-        service.reviewContent({ content: 'test', guidelines: [], contentType: 'text' })
-      ).rejects.toThrow('Invalid response: missing findings')
+        geminiService.reviewContent({ content: 'test', guidelines: [], contentType: 'text' })
+      ).rejects.toThrow('Network error')
     })
 
     it('should throw when not configured', async () => {
+      // Don't call initialize - service should be unconfigured
       await expect(
-        service.reviewContent({ content: 'test', guidelines: [], contentType: 'text' })
+        geminiService.reviewContent({ content: 'test', guidelines: [], contentType: 'text' })
       ).rejects.toThrow('Gemini API not configured')
     })
   })

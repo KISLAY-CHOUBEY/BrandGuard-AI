@@ -43,6 +43,14 @@ coverage/
 # Vite
 vite.config.ts.timestamp-*
 
+# Playwright
+playwright-report/
+test-results/
+
 # Misc
 *.tgz
 .cache/
+.vercel/
+
+# Vercel
+.vercel/

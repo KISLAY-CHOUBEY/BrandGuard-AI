@@ -39,6 +39,7 @@ export interface ContentSubmission {
   submittedAt: string;
   updatedAt: string;
   reviewId?: string;
+  revisedContent?: string; // Track revised draft separately from original
 }
 
 export interface ReviewFinding {
@@ -58,6 +59,36 @@ export interface ReviewFinding {
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: string;
   resolvedAt?: string;
+  reviewerComment?: string; // Reviewer comment on this finding
+  editedCorrection?: string; // If suggestion was edited before accepting
+}
+
+export interface ReviewConflict {
+  id: string;
+  reviewId: string;
+  findingIds: string[];
+  conflictType: 'overlap' | 'correction_mismatch';
+  location: {
+    start: number;
+    end: number;
+    context: string;
+  };
+  status: 'unresolved' | 'resolved_keep_first' | 'resolved_keep_second' | 'resolved_custom';
+  resolution?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface ReviewEvent {
+  id: string;
+  reviewId: string;
+  type: 'review_created' | 'ai_review_completed' | 'suggestion_accepted' | 'suggestion_rejected' | 'suggestion_edited' | 'comment_added' | 'draft_updated' | 'review_approved' | 'review_rejected' | 'review_approval_blocked';
+  timestamp: string;
+  findingId?: string;
+  previousValue?: string;
+  newValue?: string;
+  reviewerId: string; // 'local-user' or future auth user
+  details?: Record<string, unknown>;
 }
 
 export interface Review {
@@ -65,6 +96,7 @@ export interface Review {
   submissionId: string;
   guidelineIds: string[];
   findings: ReviewFinding[];
+  conflicts: ReviewConflict[];
   overallScore: number;
   status: ReviewStatus;
   createdAt: string;
@@ -73,6 +105,8 @@ export interface Review {
   approvedBy?: string;
   approvedAt?: string;
   error?: string;
+  events: ReviewEvent[]; // Audit trail
+  revisedContent?: string; // Final revised draft after all accepted changes
 }
 
 export interface UserSettings {
@@ -87,7 +121,7 @@ export interface AppState {
   submissions: ContentSubmission[];
   reviews: Review[];
   settings: UserSettings;
-  currentView: 'dashboard' | 'guidelines' | 'submit' | 'review' | 'history' | 'settings';
+  currentView: 'dashboard' | 'guidelines' | 'submit' | 'review' | 'history' | 'settings' | 'governance';
 }
 
 export interface GeminiReviewRequest {
@@ -142,4 +176,19 @@ export interface Toast {
   type: 'success' | 'error' | 'warning' | 'info';
   message: string;
   duration?: number;
+}
+
+// Governance Insights Types
+export interface GovernanceMetrics {
+  totalReviews: number;
+  totalFindings: number;
+  findingsBySeverity: Record<Severity, number>;
+  findingsByCategory: Record<string, number>;
+  acceptanceRate: number;
+  rejectionRate: number;
+  pendingReviews: number;
+  approvedReviews: number;
+  topViolatedRules: Array<{ ruleId: string; ruleTitle: string; guidelineName: string; count: number }>;
+  reviewActivity: Array<{ date: string; count: number }>;
+  averageScore: number;
 }

@@ -73,7 +73,7 @@ Organizations struggle to maintain brand consistency across all content touchpoi
 - **FR-27**: Export history (future)
 
 ### 3.7 Settings & Persistence
-- **FR-28**: Gemini API key configuration (stored locally in IndexedDB)
+- **FR-28**: Gemini API key configuration (server-side Vercel Environment Variables)
 - **FR-29**: Theme preference (light/dark/system)
 - **FR-30**: Local data persistence via IndexedDB
 - **FR-31**: Clear all data option
@@ -127,8 +127,8 @@ Organizations struggle to maintain brand consistency across all content touchpoi
 | Category | Requirement |
 |----------|-------------|
 | **Performance** | Page load < 2s; AI review < 10s for typical content (<5000 chars) |
-| **Security** | API key stored locally only; no backend; HTTPS in production |
-| **Privacy** | Content never leaves browser except to Gemini API; no tracking |
+| **Security** | API key stored server-side (Vercel Environment Variables); serverless backend for Gemini proxy; HTTPS in production |
+| **Privacy** | Content never leaves browser except to `/api/gemini` proxy → Gemini API; no tracking |
 | **Accessibility** | WCAG 2.1 AA compliant; keyboard navigation; screen reader support |
 | **Browser Support** | Chrome 100+, Firefox 100+, Safari 15+, Edge 100+ |
 | **Offline** | Core UI works offline; review requires connection |
@@ -146,8 +146,8 @@ Organizations struggle to maintain brand consistency across all content touchpoi
 
 ## 8. Constraints & Assumptions
 
-- **No backend** — Vite frontend only; IndexedDB for persistence
-- **Gemini API key** — User-provided; browser-visible (documented limitation)
+- **Serverless backend** — Vercel Functions (`/api/gemini`) for Gemini API proxy; Vite frontend
+- **Gemini API key** — Server-side only (Vercel Environment Variables); never exposed to browser
 - **Single-user** — No auth/multi-tenancy in MVP
 - **Hackathon timeline** — Round 1: Proposal (Nov 2-3); Round 2: Development; Round 3: Polish
 

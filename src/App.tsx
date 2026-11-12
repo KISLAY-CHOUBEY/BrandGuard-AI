@@ -1,13 +1,18 @@
-import React, { Suspense } from 'react'
+import React, { Suspense, lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/MainLayout'
-import { Dashboard } from '@/pages/Dashboard'
-import { Guidelines } from '@/pages/Guidelines'
-import { Submit } from '@/pages/Submit'
-import { Reviews } from '@/pages/Reviews'
-import { History } from '@/pages/History'
-import { Settings } from '@/pages/Settings'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+import { LoadingProvider } from '@/context/LoadingContext'
+
+// Code-split page components using React.lazy
+const Dashboard = lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.Dashboard })))
+const Guidelines = lazy(() => import('@/pages/Guidelines').then(m => ({ default: m.Guidelines })))
+const Submit = lazy(() => import('@/pages/Submit').then(m => ({ default: m.Submit })))
+const Reviews = lazy(() => import('@/pages/Reviews').then(m => ({ default: m.Reviews })))
+const History = lazy(() => import('@/pages/History').then(m => ({ default: m.History })))
+const Settings = lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })))
+const Governance = lazy(() => import('@/pages/Governance').then(m => ({ default: m.Governance })))
+const DemoWorkspace = lazy(() => import('@/pages/DemoWorkspace').then(m => ({ default: m.DemoWorkspace })))
 function LoadingFallback() {
   return (
     <div className="flex items-center justify-center min-h-[400px]">
@@ -54,7 +59,8 @@ function NotFound() {
 function App() {
   return (
     <ErrorBoundary>
-      <Routes>
+      <LoadingProvider>
+        <Routes>
         <Route path="/" element={<MainLayout />}>
           <Route index element={
             <PageWrapper>
@@ -105,9 +111,24 @@ function App() {
               </ErrorBoundary>
             </PageWrapper>
           } />
+          <Route path="governance" element={
+            <PageWrapper>
+              <ErrorBoundary>
+                <Governance />
+              </ErrorBoundary>
+            </PageWrapper>
+          } />
+          <Route path="demo" element={
+            <PageWrapper>
+              <ErrorBoundary>
+                <DemoWorkspace />
+              </ErrorBoundary>
+            </PageWrapper>
+          } />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
+      </LoadingProvider>
     </ErrorBoundary>
   )
 }

@@ -5,7 +5,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5174,
+    port: 3001,
     strictPort: true,
     open: true,
     watch: {
@@ -14,7 +14,19 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-three': ['three', '@react-three/fiber', '@react-three/drei', '@react-spring/three', 'three-mesh-bvh', 'three-stdlib', 'troika-three-text', 'maath'],
+          'vendor-router': ['react-router-dom'],
+          'vendor-ui': ['lucide-react'],
+          'vendor-utils': ['idb'],
+          vendor: ['react', 'react-dom'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
   },
   resolve: {
     alias: {

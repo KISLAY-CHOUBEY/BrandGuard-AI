@@ -52,7 +52,12 @@ interface DefaultErrorFallbackProps {
 // Render function instead of component to avoid react-refresh warning
 function renderDefaultFallback({ error, onReset }: DefaultErrorFallbackProps): React.ReactElement {
   return (
-    <div className="flex items-center justify-center min-h-[400px] p-4">
+    <div
+      className="flex items-center justify-center min-h-[400px] p-4"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+    >
       <Card variant="elevated" className="max-w-md w-full">
         <CardContent className="text-center p-8 space-y-4">
           <div className="w-16 h-16 rounded-full bg-[var(--color-error-bg)] flex items-center justify-center mx-auto">

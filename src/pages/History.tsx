@@ -12,7 +12,7 @@ import { Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { formatDistanceToNow, formatDate } from '@/utils/date'
 import { Reveal } from '@/components/ui/Reveal'
-import type { BrandGuideline, ContentSubmission, Review } from '@/types'
+import type { BrandGuideline, ContentSubmission, Review, ReviewEvent } from '@/types'
 
 type HistoryItem =
   | (ContentSubmission & { type: 'submission' })
@@ -293,7 +293,8 @@ function HistoryRow({
   )
 }
 
-import { Clock, CheckCircle } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { Clock, CheckCircle, Check, History as HistoryIcon2, FileText as FileTextIcon, List, X, Edit, MessageSquare, Save, Flag } from 'lucide-react'
 
 function HistoryDetailModal({
   item,
@@ -312,11 +313,36 @@ function HistoryDetailModal({
   const date = isSubmission ? item.submittedAt : item.createdAt
   const title = isSubmission ? item.title : submissions.find(s => s.id === item.submissionId)?.title || 'Unknown'
   const selectedGuidelines = guidelines.filter(g => (isSubmission ? item.selectedGuidelineIds : item.guidelineIds).includes(g.id))
+  const [activeTab, setActiveTab] = useState<'overview' | 'findings' | 'events' | 'content'>('overview')
+
+  const tabs = isSubmission
+    ? [
+        { id: 'overview', label: 'Overview', icon: FileTextIcon },
+        { id: 'content', label: 'Content', icon: List }
+      ]
+    : [
+        { id: 'overview', label: 'Overview', icon: FileTextIcon },
+        { id: 'findings', label: `Findings (${item.findings.length})`, icon: List },
+        { id: 'events', label: `Events (${item.events?.length || 0})`, icon: HistoryIcon2 }
+      ]
+
+  const eventTypeLabels: Record<string, { label: string; color: string; icon: LucideIcon }> = {
+    review_created: { label: 'Review Created', color: 'info', icon: ClipboardCheck },
+    ai_review_completed: { label: 'AI Review Completed', color: 'accent', icon: CheckCircle },
+    suggestion_accepted: { label: 'Suggestion Accepted', color: 'success', icon: Check },
+    suggestion_rejected: { label: 'Suggestion Rejected', color: 'error', icon: X },
+    suggestion_edited: { label: 'Suggestion Edited', color: 'warning', icon: Edit },
+    comment_added: { label: 'Comment Added', color: 'info', icon: MessageSquare },
+    draft_updated: { label: 'Draft Updated', color: 'accent', icon: Save },
+    review_approved: { label: 'Review Approved', color: 'success', icon: CheckCircle },
+    review_rejected: { label: 'Changes Requested', color: 'warning', icon: Flag }
+  }
 
   return (
     <Modal isOpen={true} onClose={onClose} title={`${isSubmission ? 'Submission' : 'Review'} Details`} size="xl">
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b border-[var(--color-border)]">
           <div>
             <h2 className="text-xl font-bold text-[var(--color-text-primary)]">{title}</h2>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -335,74 +361,102 @@ function HistoryDetailModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Guidelines Applied ({selectedGuidelines.length})</h4>
-            <div className="flex flex-wrap gap-2">
-              {selectedGuidelines.map(g => (
-                <Badge key={g.id} variant="accent" size="sm">{g.name}</Badge>
-              ))}
-              {selectedGuidelines.length === 0 && (
-                <span className="text-[var(--color-text-muted)] text-sm">No guidelines</span>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Details</h4>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-[var(--color-text-muted)]">Type</dt>
-                <dd className="text-[var(--color-text-primary)] font-mono">{isSubmission ? item.contentType : 'AI Review'}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-[var(--color-text-muted)]">Characters</dt>
-                <dd className="text-[var(--color-text-primary)]">{isSubmission ? item.content.length : '-'} chars</dd>
-              </div>
-              {!isSubmission && (
-                <>
-                  <div className="flex justify-between">
-                    <dt className="text-[var(--color-text-muted)]">Findings</dt>
-                    <dd className="text-[var(--color-text-primary)]">{item.findings.length}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-[var(--color-text-muted)]">Pending</dt>
-                    <dd className="text-[var(--color-warning)]">{item.findings.filter((f) => f.status === 'pending').length}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-[var(--color-text-muted)]">Accepted</dt>
-                    <dd className="text-[var(--color-success)]">{item.findings.filter((f) => f.status === 'accepted').length}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-[var(--color-text-muted)]">Rejected</dt>
-                    <dd className="text-[var(--color-error)]">{item.findings.filter((f) => f.status === 'rejected').length}</dd>
-                  </div>
-                </>
-              )}
-            </dl>
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-1 bg-[var(--color-bg-secondary)] rounded-lg p-1 mb-4">
+          {tabs.map(tab => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${activeTab === tab.id ? 'bg-[var(--color-accent-primary)] text-[var(--color-text-inverse)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
 
-        {isSubmission && (
-          <div>
-            <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Content Preview</h4>
-            <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4 max-h-64 overflow-y-auto font-mono text-sm whitespace-pre-wrap">
-              {item.content.substring(0, 2000)}
-              {item.content.length > 2000 && '... (truncated)'}
-            </div>
-          </div>
-        )}
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Guidelines Applied ({selectedGuidelines.length})</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedGuidelines.map(g => (
+                      <Badge key={g.id} variant="accent" size="sm">{g.name}</Badge>
+                    ))}
+                    {selectedGuidelines.length === 0 && (
+                      <span className="text-[var(--color-text-muted)] text-sm">No guidelines</span>
+                    )}
+                  </div>
+                </div>
 
-        {!isSubmission && item.findings.length > 0 && (
-          <div>
-            <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Findings Summary</h4>
+                <div>
+                  <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Details</h4>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-[var(--color-text-muted)]">Type</dt>
+                      <dd className="text-[var(--color-text-primary)] font-mono">{isSubmission ? item.contentType : 'AI Review'}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-[var(--color-text-muted)]">Characters</dt>
+                      <dd className="text-[var(--color-text-primary)]">{isSubmission ? item.content.length : '-'} chars</dd>
+                    </div>
+                    {!isSubmission && (
+                      <>
+                        <div className="flex justify-between">
+                          <dt className="text-[var(--color-text-muted)]">Findings</dt>
+                          <dd className="text-[var(--color-text-primary)]">{item.findings.length}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                          <dt className="text-[var(--color-text-muted)]">Pending</dt>
+                          <dd className="text-[var(--color-warning)]">{item.findings.filter((f) => f.status === 'pending').length}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                          <dt className="text-[var(--color-text-muted)]">Accepted</dt>
+                          <dd className="text-[var(--color-success)]">{item.findings.filter((f) => f.status === 'accepted').length}</dd>
+                        </div>
+                        <div className="flex justify-between">
+                          <dt className="text-[var(--color-text-muted)]">Rejected</dt>
+                          <dd className="text-[var(--color-error)]">{item.findings.filter((f) => f.status === 'rejected').length}</dd>
+                        </div>
+                      </>
+                    )}
+                  </dl>
+                </div>
+              </div>
+
+              {isSubmission && (
+                <div>
+                  <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Content Preview</h4>
+                  <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg p-4 max-h-64 overflow-y-auto font-mono text-sm whitespace-pre-wrap">
+                    {item.content.substring(0, 2000)}
+                    {item.content.length > 2000 && '... (truncated)'}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isSubmission && activeTab === 'findings' && item.findings.length > 0 && (
             <div className="space-y-2">
-              {item.findings.slice(0, 5).map((finding) => {
+              {item.findings.map((finding) => {
                 const guideline = guidelines.find(g => g.id === finding.guidelineId)
+                const severity = finding.severity
+                const severityColors = {
+                  low: 'info',
+                  medium: 'warning',
+                  high: 'error',
+                  critical: 'error'
+                }
                 return (
                   <div key={finding.id} className="flex items-center gap-3 p-3 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg">
-                    <Badge variant={finding.severity === 'high' || finding.severity === 'critical' ? 'error' : 'warning'} size="sm" dot>
-                      {finding.severity}
+                    <Badge variant={severityColors[severity] as 'success' | 'error' | 'warning' | 'info' | 'default' | 'accent'} size="sm" dot>
+                      {severity}
                     </Badge>
                     <span className="flex-1 text-sm text-[var(--color-text-secondary)]">{finding.explanation}</span>
                     {guideline && <Badge variant="accent" size="sm">{guideline.name}</Badge>}
@@ -412,14 +466,54 @@ function HistoryDetailModal({
                   </div>
                 )
               })}
-              {item.findings.length > 5 && (
-                <p className="text-sm text-[var(--color-text-muted)] text-center py-2">
-                  +{item.findings.length - 5} more findings
-                </p>
+            </div>
+          )}
+
+          {!isSubmission && activeTab === 'events' && (
+            <div className="space-y-3">
+              {(item.events || []).length === 0 ? (
+                <div className="text-center py-16">
+                  <HistoryIcon2 className="w-16 h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-[var(--color-text-primary)]">No events recorded</h3>
+                  <p className="text-[var(--color-text-muted)] mt-1">Audit trail will appear here as actions are taken.</p>
+                </div>
+              ) : (
+                (item.events || [])
+                  .slice()
+                  .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                  .map(event => {
+                    const config = eventTypeLabels[event.type] || { label: event.type, color: 'default', icon: FileTextIcon }
+                    const Icon = config.icon
+                    return (
+                      <Card key={event.id} variant="outlined" className="p-4">
+                        <div className="flex items-start gap-4">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${config.color === 'success' ? 'bg-[var(--color-success-bg)] text-[var(--color-success)]' : config.color === 'error' ? 'bg-[var(--color-error-bg)] text-[var(--color-error)]' : config.color === 'warning' ? 'bg-[var(--color-warning-bg)] text-[var(--color-warning)]' : config.color === 'accent' ? 'bg-[var(--color-accent-bg)] text-[var(--color-accent-primary)]' : 'bg-[var(--color-info-bg)] text-[var(--color-info)]'}`}>
+                            <Icon className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-[var(--color-text-primary)]">{config.label}</h4>
+                              <span className="text-xs text-[var(--color-text-muted)]">{new Date(event.timestamp).toLocaleString()}</span>
+                            </div>
+                            <p className="text-sm text-[var(--color-text-secondary)] mt-1">By: {event.reviewerId}</p>
+                            {event.findingId && (
+                              <p className="text-xs text-[var(--color-text-muted)] mt-1">Finding: {event.findingId.substring(0, 12)}...</p>
+                            )}
+                            {event.previousValue && (
+                              <div className="mt-2 space-y-1">
+                                <p className="text-xs text-[var(--color-text-muted)]">Previous: <span className="font-mono text-[var(--color-error)] line-through">{String(event.previousValue).substring(0, 100)}</span></p>
+                                <p className="text-xs text-[var(--color-text-muted)]">New: <span className="font-mono text-[var(--color-success)]">{String(event.newValue).substring(0, 100)}</span></p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    )
+                  })
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-[var(--color-border)]">
           <Button variant="secondary" onClick={onClose}>Close</Button>
