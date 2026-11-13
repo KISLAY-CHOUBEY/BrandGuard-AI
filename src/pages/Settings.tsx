@@ -22,7 +22,14 @@ export function Settings() {
   const [importResult, setImportResult] = useState<{ status: 'idle' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' })
   const [exportData, setExportData] = useState<ExportData | null>(null)
   // BYOK state
-  const [userApiKey, setUserApiKey] = useState('')
+  const [userApiKey, setUserApiKey] = useState<string>(userGeminiApiKey ?? '')
+
+  // Keep the local input in sync with the shared BYOK key so the value survives
+  // in-app navigation (Settings remounts; AppProvider does not). The key stays
+  // in memory only — never persisted to storage or exports.
+  useEffect(() => {
+    setUserApiKey(userGeminiApiKey ?? '')
+  }, [userGeminiApiKey])
   const [showKey, setShowKey] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'not-configured' | 'testing' | 'connected' | 'invalid-key' | 'error'>('not-configured')
   const [isSaving, setIsSaving] = useState(false)

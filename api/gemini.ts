@@ -1,4 +1,4 @@
-import { GoogleGenAI, ApiError, ThinkingLevel } from '@google/genai'
+import { GoogleGenAI, ApiError } from '@google/genai'
 import { geminiRateLimiter, getClientIp, setRateLimitHeaders } from '../src/lib/rate-limiter'
 
 // Schema for Gemini structured output
@@ -24,8 +24,10 @@ const RETRY_CONFIG = {
   maxRetries: 3,
   baseDelayMs: 1000,
   maxDelayMs: 10000,
-  retryableErrors: ['429', 'quota', 'rate limit', 'network', 'fetch', 'timeout', '504', '502']
+  retryableErrors: ['429', 'quota', 'rate limit', 'network', 'fetch', 'timeout', '502', '503', 'unavailable']
 } as const
+
+const FALLBACK_MODEL = 'gemini-1.5-flash'
 
 function isRetryableError(error: Error): boolean {
   const message = error.message.toLowerCase()
@@ -165,6 +167,9 @@ export default async function handler(req: any, res: any) {
 
       let lastError: Error | null = null
 
+      const overallController = new AbortController()
+      const overallTimeoutId = setTimeout(() => overallController.abort(new Error('Gemini review timed out after 60 seconds.')), 60000)
+
       for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
         const attemptController = new AbortController()
         const attemptTimeoutId = setTimeout(() => attemptController.abort(new Error('Gemini request timed out after 120 seconds.')), 120000)
@@ -177,10 +182,9 @@ export default async function handler(req: any, res: any) {
               topP: 0.8,
               topK: 40,
               maxOutputTokens: 2048,
-              thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
               responseMimeType: 'application/json',
               responseSchema: REVIEW_SCHEMA as any,
-              abortSignal: attemptController.signal
+              abortSignal: AbortSignal.any([attemptController.signal, overallController.signal])
             }
           })
           const text = response.text
@@ -197,9 +201,14 @@ export default async function handler(req: any, res: any) {
           return res.json(parsed)
         } catch (error) {
           if (error instanceof SyntaxError) throw new Error('Failed to parse Gemini response as JSON')
-          if (error instanceof Error && error.name === 'AbortError' && attemptController.signal.reason instanceof Error) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            const reason = attemptController.signal.reason instanceof Error
+              ? attemptController.signal.reason
+              : overallController.signal.reason instanceof Error
+                ? overallController.signal.reason
+                : error
             if (!lastError || lastError.name === 'AbortError') {
-              lastError = attemptController.signal.reason
+              lastError = reason
             }
           } else {
             lastError = error instanceof Error ? error : new Error(String(error))
@@ -216,6 +225,42 @@ export default async function handler(req: any, res: any) {
           clearTimeout(attemptTimeoutId)
         }
       }
+
+      // Fallback to alternative model for transient 503 errors only
+      if (lastError instanceof ApiError && lastError.status === 503) {
+        try {
+          const fallbackResponse = await client.models.generateContent({
+            model: FALLBACK_MODEL,
+            contents: buildPrompt({ content, guidelines, contentType }),
+            config: {
+              temperature: 0.1,
+              topP: 0.8,
+              topK: 40,
+              maxOutputTokens: 2048,
+              responseMimeType: 'application/json',
+              responseSchema: REVIEW_SCHEMA,
+              abortSignal: overallController.signal
+            }
+          });
+          const fallbackText = fallbackResponse.text
+          if (!fallbackText) throw new Error('Empty response from fallback model')
+          const fallbackParsed = JSON.parse(fallbackText)
+          if (!fallbackParsed.findings || !Array.isArray(fallbackParsed.findings)) throw new Error('Invalid fallback response: missing findings')
+          if (typeof fallbackParsed.overallScore !== 'number') throw new Error('Invalid fallback response: missing score')
+          fallbackParsed.overallScore = Math.max(0, Math.min(100, Math.round(fallbackParsed.overallScore)))
+          fallbackParsed.findings = fallbackParsed.findings.map((f: any) => ({
+            ...f,
+            severity: (['low', 'medium', 'high', 'critical'].includes(f.severity) ? f.severity : 'medium'),
+            location: { start: Math.max(0, f.location?.start ?? 0), end: Math.max(0, f.location?.end ?? 0), context: f.location?.context ?? '' }
+          }))
+          clearTimeout(overallTimeoutId)
+          return res.status(200).json(fallbackParsed)
+        } catch {
+          // Fallback failed — fall through to return original error
+        }
+      }
+
+      clearTimeout(overallTimeoutId)
 
       const mapped = mapApiError(lastError ?? new Error('Gemini API request failed after retries'))
       const statusCode = mapped.statusCode ?? 500

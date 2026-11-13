@@ -3,8 +3,54 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
-import { GoogleGenAI, ApiError, ThinkingLevel } from '@google/genai';
-import { geminiRateLimiter, getClientIp, setRateLimitHeaders } from './src/lib/rate-limiter.ts';
+import { GoogleGenAI, ApiError } from '@google/genai';
+
+// Inline rate limiter (same logic as src/lib/rate-limiter.ts, required for native Node execution of .mjs)
+const rateLimitStore = new Map();
+function createRateLimiter(config) {
+  const { windowMs, maxRequests, message, timeFn = Date.now } = config;
+  return {
+    check(key) {
+      const now = timeFn();
+      const existing = rateLimitStore.get(key);
+      if (!existing || existing.resetTime < now) {
+        const resetTime = now + windowMs;
+        rateLimitStore.set(key, { count: 1, resetTime });
+        return { allowed: true, remaining: maxRequests - 1, resetTime };
+      }
+      if (existing.count >= maxRequests) {
+        return { allowed: false, remaining: 0, resetTime: existing.resetTime };
+      }
+      existing.count++;
+      return { allowed: true, remaining: maxRequests - existing.count, resetTime: existing.resetTime };
+    },
+    getInfo(key) {
+      const existing = rateLimitStore.get(key);
+      if (!existing || existing.resetTime < timeFn()) {
+        return null;
+      }
+      return { remaining: Math.max(0, maxRequests - existing.count), resetTime: existing.resetTime };
+    },
+  };
+}
+const geminiRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+  message: 'Too many requests. Please wait a moment before trying again.',
+});
+function getClientIp(req) {
+  const forwarded = req.headers?.['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || req.connection?.remoteAddress || 'unknown';
+}
+function setRateLimitHeaders(res, info, maxRequests) {
+  if (!info) return;
+  res.setHeader('X-RateLimit-Limit', maxRequests);
+  res.setHeader('X-RateLimit-Remaining', info.remaining);
+  res.setHeader('X-RateLimit-Reset', Math.ceil(info.resetTime / 1000));
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -58,8 +104,10 @@ const RETRY_CONFIG = {
   maxRetries: 3,
   baseDelayMs: 1000,
   maxDelayMs: 10000,
-  retryableErrors: ['429', 'quota', 'rate limit', 'network', 'fetch', 'timeout', '504', '502']
+  retryableErrors: ['429', 'quota', 'rate limit', 'network', 'fetch', 'timeout', '502', '503', 'unavailable']
 };
+
+const FALLBACK_MODEL = 'gemini-1.5-flash';
 
 function isRetryableError(error) {
   const message = error.message.toLowerCase();
@@ -164,7 +212,7 @@ app.post('/api/gemini', async (req, res) => {
   const { action, content, guidelines, contentType } = req.body;
 
   // Read API key from request header (user-provided BYOK) or server-side environment variable (fallback)
-  const apiKey = req.headers['x-gemini-api-key'] as string | undefined ?? process.env.GEMINI_API_KEY;
+  const apiKey = req.headers['x-gemini-api-key'] ?? process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(503).json({
       error: 'AI service not configured. Please provide a Gemini API key or set GEMINI_API_KEY in server environment.'
@@ -207,6 +255,9 @@ app.post('/api/gemini', async (req, res) => {
 
       let lastError = null;
 
+      const overallController = new AbortController();
+      const overallTimeoutId = setTimeout(() => overallController.abort(new Error('Gemini review timed out after 60 seconds.')), 60000);
+
       for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
         const attemptController = new AbortController();
         const attemptTimeoutId = setTimeout(() => attemptController.abort(new Error('Gemini request timed out after 120 seconds.')), 120000);
@@ -219,10 +270,9 @@ app.post('/api/gemini', async (req, res) => {
               topP: 0.8,
               topK: 40,
               maxOutputTokens: 2048,
-              thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
               responseMimeType: 'application/json',
               responseSchema: REVIEW_SCHEMA,
-              abortSignal: attemptController.signal
+              abortSignal: AbortSignal.any([attemptController.signal, overallController.signal])
             }
           });
           const text = response.text;
@@ -239,13 +289,27 @@ app.post('/api/gemini', async (req, res) => {
           return res.json(parsed);
         } catch (error) {
           if (error instanceof SyntaxError) throw new Error('Failed to parse Gemini response as JSON');
-          if (error instanceof Error && error.name === 'AbortError' && attemptController.signal.reason instanceof Error) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            const reason = attemptController.signal.reason instanceof Error
+              ? attemptController.signal.reason
+              : overallController.signal.reason instanceof Error
+                ? overallController.signal.reason
+                : error;
             if (!lastError || lastError.name === 'AbortError') {
-              lastError = attemptController.signal.reason;
+              lastError = reason;
             }
           } else {
             lastError = error instanceof Error ? error : new Error(String(error));
           }
+
+          console.log('Gemini attempt error:', {
+            attempt: attempt + 1,
+            errorMessage: lastError instanceof Error ? lastError.message : String(lastError),
+            isApiError: lastError instanceof ApiError,
+            apiErrorStatus: lastError instanceof ApiError ? lastError.status : undefined,
+            isRetryable: isRetryableError(lastError),
+            isAbortError: lastError.name === 'AbortError'
+          });
 
           if (attempt === RETRY_CONFIG.maxRetries) break;
           if (lastError.name === 'AbortError') break;
@@ -259,6 +323,42 @@ app.post('/api/gemini', async (req, res) => {
         }
       }
 
+      // Fallback to alternative model for transient 503 errors only
+      if (lastError instanceof ApiError && lastError.status === 503) {
+        try {
+          const fallbackResponse = await client.models.generateContent({
+            model: FALLBACK_MODEL,
+            contents: buildPrompt({ content, guidelines, contentType }),
+            config: {
+              temperature: 0.1,
+              topP: 0.8,
+              topK: 40,
+              maxOutputTokens: 2048,
+              responseMimeType: 'application/json',
+              responseSchema: REVIEW_SCHEMA,
+              abortSignal: overallController.signal
+            }
+          });
+          const fallbackText = fallbackResponse.text;
+          if (!fallbackText) throw new Error('Empty response from fallback model');
+          const fallbackParsed = JSON.parse(fallbackText);
+          if (!fallbackParsed.findings || !Array.isArray(fallbackParsed.findings)) throw new Error('Invalid fallback response: missing findings');
+          if (typeof fallbackParsed.overallScore !== 'number') throw new Error('Invalid fallback response: missing score');
+          fallbackParsed.overallScore = Math.max(0, Math.min(100, Math.round(fallbackParsed.overallScore)));
+          fallbackParsed.findings = fallbackParsed.findings.map((f) => ({
+            ...f,
+            severity: (['low', 'medium', 'high', 'critical'].includes(f.severity) ? f.severity : 'medium'),
+            location: { start: Math.max(0, f.location?.start ?? 0), end: Math.max(0, f.location?.end ?? 0), context: f.location?.context ?? '' }
+          }));
+          clearTimeout(overallTimeoutId);
+          return res.json(fallbackParsed);
+        } catch {
+          // Fallback failed — fall through to return original error
+        }
+      }
+
+      clearTimeout(overallTimeoutId);
+
       const mapped = mapApiError(lastError ?? new Error('Gemini API request failed after retries'));
       const statusCode = mapped.statusCode ?? 500;
       return res.status(statusCode).json({ error: mapped.message });
@@ -266,7 +366,12 @@ app.post('/api/gemini', async (req, res) => {
 
     return res.status(400).json({ error: 'Invalid action. Use "test" or "review"' });
   } catch (error) {
-    console.error('Gemini API error:', error);
+    console.log('Gemini API error details:', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      statusCode: error instanceof ApiError ? error.status : undefined,
+      apiKeySource: req.headers['x-gemini-api-key'] ? 'BYOK' : process.env.GEMINI_API_KEY ? 'env' : 'none',
+      apiKeyPresent: !!apiKey
+    });
     const mapped = mapApiError(error);
     const statusCode = mapped.statusCode ?? 500;
     return res.status(statusCode).json({ error: mapped.message || 'Internal server error' });

@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5-646cff.svg)](https://vitejs.dev/)
 [![Gemini](https://img.shields.io/badge/Gemini-3.8%20Flash-4285f4.svg)](https://ai.google.dev/)
-[![Tests](https://img.shields.io/badge/Tests-155%20Unit%20%2B%2022%20E2E-brightgreen.svg)](https://github.com)
+[![Tests](https://img.shields.io/badge/Tests-158%20Unit%20%2B%2022%20E2E-brightgreen.svg)](https://github.com)
 
 ---
 
@@ -37,13 +37,15 @@
 - Select multiple guidelines for review
 - Draft auto-save to local IndexedDB
 
-### 🤖 AI-Powered Review (Gemini 1.5 Flash)
+### 🤖 AI-Powered Review (Gemini)
+- Primary model: `gemini-3.8-flash`; automatic fallback to `gemini-1.5-flash` on transient 503 errors
 - Structured JSON output — no parsing errors
 - Findings with: severity, location (character offsets + context), explanation, suggested correction, guideline reference
 - Overall compliance score (0-100)
 - AI-generated review summary
 - **Server-side API proxy** — API key never leaves the server (Vercel environment variables)
 - **Bring Your Own Key (BYOK)** — Optional session-only user-provided key sent via `x-gemini-api-key` header; never persisted
+- **Exponential backoff** — 3 retries with jitter for upstream failures (429, 502, 503, quota, rate limit, network, fetch, timeout)
 
 ### ✅ Human-in-the-Loop Workflow
 - **Never auto-publish** — human approval required
@@ -175,7 +177,7 @@
 | **TypeScript** | `npm run typecheck` | ✅ 0 errors |
 | **ESLint** | `npm run lint` | ⚠️ 0 errors; pre-existing warnings cause `--max-warnings 0` to fail |
 | **Production Build** | `npm run build` | ✅ Success |
-| **Unit Tests** | `npm run test -- --run` | ✅ **155/155 passing** |
+| **Unit Tests** | `npm run test -- --run` | ✅ **158/158 passing** |
 | **E2E Tests** | `npx playwright test` | ✅ **22/22 passing** |
 
 ### Test Coverage Details
@@ -223,7 +225,7 @@
 | **Routing** | React Router 6 |
 | **State** | React Context (AppContext, ThemeContext, LoadingContext) |
 | **Storage** | IndexedDB via `idb` (normal + separate demo DB) |
-| **AI** | Google Gemini 1.5 Flash (`@google/genai`) via serverless proxy |
+| **AI** | Google Gemini 3.8 Flash (primary) + 1.5 Flash (fallback) (`@google/genai`) via serverless proxy |
 | **Styling** | CSS Custom Properties (Design System, 60+ tokens) |
 | **3D** | Three.js, React Three Fiber, Drei |
 | **Animation** | Framer Motion |
@@ -368,7 +370,7 @@ npm run preview
 - **Demo Workspace** with sample data & full isolation
 - **Conflict detection & resolution** in review workflow
 - **AI Integration Hardening** (rate limiting, retries, validation, size limits)
-- All tests passing (131 unit + 22 E2E)
+- All tests passing (158 unit + 22 E2E)
 - Documentation updated for accuracy
 
 ### Post-Hackathon

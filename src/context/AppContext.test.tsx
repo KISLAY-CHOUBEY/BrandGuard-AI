@@ -1443,3 +1443,28 @@ describe('AppContext - guideline CRUD', () => {
     expect(mockInitialize).toHaveBeenCalledWith()
   })
 })
+
+// --- BYOK (session-only key) persistence ---
+// The BYOK key lives in shared AppContext state (userGeminiApiKey), which survives
+// in-app navigation because AppProvider is not remounted. It must never be written
+// to persistent storage (settings/IndexedDB/exports).
+describe('BYOK session-only key persistence', () => {
+  it('should retain the BYOK key in shared state and never persist it to storage', async () => {
+    mockStores.set('submissions', new Map())
+    mockSaveSettings.mockClear()
+    const { result } = renderHook(() => useTestContext(), { wrapper })
+    await act(async () => {})
+    expect(result.current.isLoading).toBe(false)
+
+    await act(async () => {
+      result.current.setUserGeminiApiKey('saved-key-123')
+    })
+    expect(result.current.userGeminiApiKey).toBe('saved-key-123')
+    expect(mockSaveSettings).not.toHaveBeenCalled()
+
+    await act(async () => {
+      result.current.clearUserGeminiApiKey()
+    })
+    expect(result.current.userGeminiApiKey).toBeNull()
+  })
+})
