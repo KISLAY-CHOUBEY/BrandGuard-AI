@@ -29,6 +29,6 @@
       "@styles/*": ["src/styles/*"]
     }
   },
-  "include": ["src", "vitest.config.ts"],
+  "include": ["src", "api", "vitest.config.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

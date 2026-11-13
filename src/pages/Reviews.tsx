@@ -793,7 +793,7 @@ const ContentTab = React.forwardRef<HTMLDivElement, { content: string; findings:
     // Sort findings by location start position
     const sortedFindings = [...findings].filter(f => f.location).sort((a, b) => (a.location?.start || 0) - (b.location?.start || 0))
 
-    let result: React.ReactNode[] = []
+    const result: React.ReactNode[] = []
     let lastEnd = 0
 
     sortedFindings.forEach((finding) => {

@@ -38,12 +38,14 @@
 | **Brand Guidelines** | IndexedDB (local) | Never | Until user deletes |
 | **Content Submissions** | IndexedDB (local) | To `/api/gemini` → Gemini API | Until user deletes |
 | **Review Findings** | IndexedDB (local) | Never | Until user deletes |
-| **Gemini API Key** | **Vercel Environment Variable (server-only)** | **Never** (server-side only) | Until admin rotates |
+| **Gemini API Key (Server)** | **Vercel Environment Variable (server-only)** | **Never** (server-side only) | Until admin rotates |
+| **Gemini API Key (BYOK)** | **Memory only (React state)** | **Sent via `x-gemini-api-key` header to `/api/gemini`** | **Session only — lost on refresh/close** |
 | **Theme Preference** | localStorage | Never | Until user clears |
 
 ### 2.2 What Leaves the Browser
 
 **Only**: Content submitted for review → `/api/gemini` (serverless) → Google Gemini API
+- Optional: User-provided BYOK API key sent via `x-gemini-api-key` header (session-only, not stored)
 
 **Never**:
 - Data sent to external servers (except via `/api/gemini` proxy)
@@ -51,6 +53,7 @@
 - Analytics or tracking events
 - API keys in logs or error reports
 - **API keys to the client** (server-side only)
+- **BYOK keys persisted** (memory only, never written to disk)
 
 ---
 
@@ -72,7 +75,12 @@
 - **Test Connection**: Settings page "Test Connection" button calls `/api/gemini?action=test` (validates server configuration)
 - **Configure**: Set `GEMINI_API_KEY` in Vercel Project Settings → Environment Variables (admin only)
 - **Rotate**: Update `GEMINI_API_KEY` in Vercel, redeploy (no client changes needed)
-- **No client-side key management**: The frontend has no API key input, save, or delete functionality
+- **BYOK (Bring Your Own Key)**: Settings page allows users to enter their own Gemini API key for session-only use
+  - Key is kept in memory only (React state), **never persisted** to IndexedDB, localStorage, or exported data
+  - Key is sent via `x-gemini-api-key` header to `/api/gemini` proxy
+  - Server falls back to `GEMINI_API_KEY` environment variable if no user key provided
+  - Key is lost on browser refresh, tab close, or navigation away from the app
+  - "Clear Key" button removes the key from memory immediately
 
 ### 3.4 Server-Side Proxy (IMPLEMENTED)
 > **✅ RESOLVED**: The API key is no longer exposed to the client. All Gemini API calls are proxied through a Vercel serverless function (`/api/gemini.ts`).

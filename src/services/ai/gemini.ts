@@ -4,39 +4,74 @@ import type { GeminiReviewRequest, GeminiReviewResponse } from '@/types'
 const API_BASE = '/api'
 
 export interface GeminiReviewService {
-  initialize(apiKey: string): void
+  initialize(apiKey?: string): void
   isConfigured(): boolean
-  testConnection(): Promise<{ success: boolean; message: string }>
-  reviewContent(request: GeminiReviewRequest): Promise<GeminiReviewResponse>
+  testConnection(apiKey?: string): Promise<{ success: boolean; message: string }>
+  reviewContent(request: GeminiReviewRequest, apiKey?: string): Promise<GeminiReviewResponse>
+  /** Set user-provided API key (BYOK) - kept in memory only, never persisted */
+  setUserApiKey(apiKey: string | null): void
+  /** Get current user API key if set */
+  getUserApiKey(): string | null
+  /** Check if user has provided their own key */
+  hasUserApiKey(): boolean
+  /** Reset the service state - for testing only */
+  resetForTesting(): void
 }
 
 class FrontendGeminiService implements GeminiReviewService {
-  // API key is now configured server-side via Vercel environment variable
-  // This field is kept for interface compatibility but is no longer used
-  private _configured = false
+  // User-provided API key (BYOK) - kept in memory only, never persisted
+  private _userApiKey: string | null = null
+  private _serverConfigured = false
 
-  initialize(): void {
-    this._configured = true
+  initialize(userApiKey?: string): void {
+    this._userApiKey = userApiKey ?? null
+    this._serverConfigured = true
+  }
+
+  /** Set user-provided API key (BYOK) - kept in memory only */
+  setUserApiKey(apiKey: string | null): void {
+    this._userApiKey = apiKey
+  }
+
+  /** Get current user API key if set */
+  getUserApiKey(): string | null {
+    return this._userApiKey
+  }
+
+  /** Check if user has provided their own key */
+  hasUserApiKey(): boolean {
+    return this._userApiKey !== null && this._userApiKey.length > 0
   }
 
   /** Reset the service state - for testing only */
   resetForTesting(): void {
-    this._configured = false
+    this._userApiKey = null
+    this._serverConfigured = false
   }
 
   isConfigured(): boolean {
-    // Always return true since the server has the key configured
-    return this._configured
+    // Return true if either user provided key or server is configured
+    return this.hasUserApiKey() || this._serverConfigured
   }
 
-  async testConnection(): Promise<{ success: boolean; message: string }> {
-    if (!this._configured) {
+  private getHeaders(apiKey?: string): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    // Use user-provided key if available, otherwise let server use its fallback
+    const keyToSend = apiKey ?? this._userApiKey
+    if (keyToSend) {
+      headers['x-gemini-api-key'] = keyToSend
+    }
+    return headers
+  }
+
+  async testConnection(apiKey?: string): Promise<{ success: boolean; message: string }> {
+    if (!this.isConfigured() && !apiKey) {
       return { success: false, message: 'Gemini API not configured' }
     }
     try {
       const response = await fetch(`${API_BASE}/gemini`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(apiKey),
         body: JSON.stringify({ action: 'test' })
       })
 
@@ -56,13 +91,13 @@ class FrontendGeminiService implements GeminiReviewService {
     }
   }
 
-  async reviewContent(request: GeminiReviewRequest): Promise<GeminiReviewResponse> {
-    if (!this._configured) {
+  async reviewContent(request: GeminiReviewRequest, apiKey?: string): Promise<GeminiReviewResponse> {
+    if (!this.isConfigured() && !apiKey) {
       throw new Error('Gemini API not configured')
     }
     const response = await fetch(`${API_BASE}/gemini`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(apiKey),
       body: JSON.stringify({
         action: 'review',
         content: request.content,

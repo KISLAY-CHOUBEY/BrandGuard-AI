@@ -307,13 +307,14 @@ function HistoryDetailModal({
   guidelines: BrandGuideline[]
   onClose: () => void
 }) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'findings' | 'events' | 'content'>('overview')
+
   if (!item) return null
 
   const isSubmission = item.type === 'submission'
   const date = isSubmission ? item.submittedAt : item.createdAt
   const title = isSubmission ? item.title : submissions.find(s => s.id === item.submissionId)?.title || 'Unknown'
   const selectedGuidelines = guidelines.filter(g => (isSubmission ? item.selectedGuidelineIds : item.guidelineIds).includes(g.id))
-  const [activeTab, setActiveTab] = useState<'overview' | 'findings' | 'events' | 'content'>('overview')
 
   const tabs = isSubmission
     ? [

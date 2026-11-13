@@ -163,11 +163,11 @@ app.post('/api/gemini', async (req, res) => {
 
   const { action, content, guidelines, contentType } = req.body;
 
-  // Read API key from server-side environment variable only
-  const apiKey = process.env.GEMINI_API_KEY;
+  // Read API key from request header (user-provided BYOK) or server-side environment variable (fallback)
+  const apiKey = req.headers['x-gemini-api-key'] as string | undefined ?? process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(503).json({
-      error: 'AI service not configured. Please set GEMINI_API_KEY in server environment.'
+      error: 'AI service not configured. Please provide a Gemini API key or set GEMINI_API_KEY in server environment.'
     });
   }
 

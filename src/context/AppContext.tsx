@@ -17,6 +17,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
+  // User-provided Gemini API key (BYOK) - kept in memory only, never persisted
+  const [userGeminiApiKey, setUserGeminiApiKey] = useState<string | null>(null)
 
   // Route all storage calls through the demo DB when in demo mode, otherwise the normal DB.
   // Demo and normal data live in separate IndexedDB databases and never mix.
@@ -40,11 +42,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Ensure conflicts array exists on all reviews (migration for existing data)
       const reviewsWithConflicts = reviews.map(r => ({ ...r, conflicts: r.conflicts || [] }))
       setState(prev => ({ ...prev, guidelines, submissions, reviews: reviewsWithConflicts, settings }))
-      // Initialize Gemini service (API key is configured server-side via Vercel env vars)
-      geminiService.initialize()
+      // Initialize Gemini service with user-provided key (BYOK) if set, otherwise server-side
+      geminiService.initialize(userGeminiApiKey ?? undefined)
     } catch (error) { console.error('Failed to load data:', error) }
     finally { setIsLoading(false) }
-  }, [activeStorage])
+  }, [activeStorage, userGeminiApiKey])
 
   useEffect(() => {
     loadData()
@@ -93,8 +95,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ])
     const reviewsWithConflicts = reviews.map(r => ({ ...r, conflicts: r.conflicts || [] }))
     setState(prev => ({ ...prev, guidelines, submissions, reviews: reviewsWithConflicts, settings }))
-    geminiService.initialize()
-  }, [storage])
+    geminiService.initialize(userGeminiApiKey ?? undefined)
+  }, [storage, userGeminiApiKey])
 
   const switchToNormal = useCallback(async () => {
     setIsLoading(true)
@@ -432,7 +434,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, reviews: prev.reviews.map(r => r.id === reviewId ? updatedReview : r) }))
   }, [activeStorage, state.reviews, state.submissions, recordEvent, updateSubmission])
 
-  const initializeGemini = useCallback(() => { geminiService.initialize() }, [])
+  const initializeGemini = useCallback(() => { geminiService.initialize(userGeminiApiKey ?? undefined) }, [userGeminiApiKey])
+
+  const clearUserGeminiApiKey = useCallback(() => {
+    setUserGeminiApiKey(null)
+    geminiService.setUserApiKey(null)
+  }, [])
 
   const updateSettings = useCallback(async (settings: Partial<UserSettings>) => {
     const updated = await activeStorage.saveSettings(settings)
@@ -545,5 +552,5 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setCurrentView = useCallback((view: AppState['currentView']) => { setState(prev => ({ ...prev, currentView: view })) }, [])
 
-  return <AppContext.Provider value={{ ...state, isLoading, isDemoMode, toasts, addToast, removeToast, createGuideline, updateGuideline, deleteGuideline, toggleGuidelineActive, createSubmission, updateSubmission, deleteSubmission, startReview, approveReview, requestChanges, updateFindingStatus, acceptAllFindings, updateFindingWithEdit, addReviewerComment, recordEvent, getEvents, updateConflict, updateSettings, initializeGemini, setCurrentView, navItems, switchToDemo, switchToNormal, resetDemo }}>{children}</AppContext.Provider>
+  return <AppContext.Provider value={{ ...state, isLoading, isDemoMode, toasts, addToast, removeToast, createGuideline, updateGuideline, deleteGuideline, toggleGuidelineActive, createSubmission, updateSubmission, deleteSubmission, startReview, approveReview, requestChanges, updateFindingStatus, acceptAllFindings, updateFindingWithEdit, addReviewerComment, recordEvent, getEvents, updateConflict, updateSettings, initializeGemini, setCurrentView, navItems, switchToDemo, switchToNormal, resetDemo, userGeminiApiKey, setUserGeminiApiKey, clearUserGeminiApiKey }}>{children}</AppContext.Provider>
 }

@@ -1,8 +1,8 @@
-﻿import React, { useState, useCallback } from 'react'
+﻿import React, { useState, useCallback, useEffect } from 'react'
 import {
   Key, Shield, Database, Trash2,
   Check, AlertCircle, Info, RotateCcw, ExternalLink,
-  Download, Upload, FileText
+  Download, Upload, FileText, Eye, EyeOff, Save, X, Loader2
 } from 'lucide-react'
 import { useApp } from '@/context/useApp'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/Card'
@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/Modal'
 import { storage, type ExportData } from '@/services/storage'
 import { Reveal } from '@/components/ui/Reveal'
+import { Input } from '@/components/ui/Input'
 
 export function Settings() {
-  const { settings, updateSettings, initializeGemini } = useApp()
+  const { settings, updateSettings, initializeGemini, userGeminiApiKey, setUserGeminiApiKey, clearUserGeminiApiKey } = useApp()
   const [testResult, setTestResult] = useState<{ status: 'idle' | 'testing' | 'connected' | 'error'; message: string }>({ status: 'idle', message: '' })
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
@@ -20,15 +21,66 @@ export function Settings() {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importResult, setImportResult] = useState<{ status: 'idle' | 'success' | 'error'; message: string }>({ status: 'idle', message: '' })
   const [exportData, setExportData] = useState<ExportData | null>(null)
+  // BYOK state
+  const [userApiKey, setUserApiKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'not-configured' | 'testing' | 'connected' | 'invalid-key' | 'error'>('not-configured')
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleTestApiKey = useCallback(async () => {
+  // Sync connection status from testResult and userGeminiApiKey
+  useEffect(() => {
+    if (userGeminiApiKey) {
+      if (testResult.status === 'connected') {
+        setConnectionStatus('connected')
+      } else if (testResult.status === 'testing') {
+        setConnectionStatus('testing')
+      } else if (testResult.status === 'error') {
+        // Don't overwrite 'invalid-key' with generic 'error' - invalid-key is more specific
+        setConnectionStatus(prev => prev === 'invalid-key' ? 'invalid-key' : 'error')
+      } else {
+        setConnectionStatus('not-configured')
+      }
+    } else {
+      setConnectionStatus('not-configured')
+    }
+  }, [userGeminiApiKey, testResult])
+
+  const handleSaveKey = useCallback(async () => {
+    if (!userApiKey.trim()) return
+    setIsSaving(true)
+    try {
+      setUserGeminiApiKey(userApiKey.trim())
+      initializeGemini()
+      setConnectionStatus('not-configured')
+      setTestResult({ status: 'idle', message: 'Key saved. Click Test Connection to verify.' })
+    } finally {
+      setIsSaving(false)
+    }
+  }, [userApiKey, setUserGeminiApiKey, initializeGemini])
+
+  const handleClearKey = useCallback(() => {
+    setUserApiKey('')
+    clearUserGeminiApiKey()
+    setConnectionStatus('not-configured')
+    setTestResult({ status: 'idle', message: '' })
+  }, [clearUserGeminiApiKey])
+
+  const handleTestApiKey = useCallback(async (keyToTest?: string) => {
+    // If a specific key is provided, use it; otherwise use the saved BYOK key.
+    // If neither exists, we still call the endpoint to test the server-side fallback.
+    const key = keyToTest ?? userGeminiApiKey ?? ''
+
     setTestResult({ status: 'testing', message: 'Testing connection...' })
+    setConnectionStatus('testing')
 
     try {
-      // Test connection via API endpoint (uses server-side configured key)
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (key) {
+        headers['x-gemini-api-key'] = key
+      }
       const response = await fetch('/api/gemini', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ action: 'test' })
       })
 
@@ -41,19 +93,32 @@ export function Settings() {
 
       if (result.success) {
         setTestResult({ status: 'connected', message: result.message })
+        setConnectionStatus('connected')
       } else {
         setTestResult({ status: 'error', message: result.message })
+        setConnectionStatus('invalid-key')
       }
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
-      let message = 'Failed to validate server configuration'
-      if (err.message.includes('Server configuration error')) message = 'Server not configured - GEMINI_API_KEY missing'
-      else if (err.message.includes('quota') || err.message.includes('429')) message = 'Rate limited - please try again later'
-      else if (err.message.includes('network') || err.message.includes('fetch')) message = 'Network error - check your connection'
-      else message = err.message
+      let message = 'Connection test failed'
+      let status: 'error' | 'invalid-key' = 'error'
+      if (err.message.includes('401') || err.message.includes('403') || err.message.toLowerCase().includes('invalid') || err.message.toLowerCase().includes('unauthorized')) {
+        message = 'Invalid API key'
+        status = 'invalid-key'
+      } else if (err.message.includes('quota') || err.message.includes('429')) {
+        message = 'Rate limited - please try again later'
+        status = 'error'
+      } else if (err.message.includes('network') || err.message.includes('fetch')) {
+        message = 'Network error - check your connection'
+        status = 'error'
+      } else {
+        message = err.message
+        status = 'error'
+      }
       setTestResult({ status: 'error', message })
+      setConnectionStatus(status)
     }
-  }, [])
+  }, [userGeminiApiKey])
 
   const handleExport = useCallback(async () => {
     try {
@@ -95,19 +160,19 @@ export function Settings() {
       await storage.importAllData(data)
       setImportResult({ status: 'success', message: 'Data imported successfully. Reloading...' })
       setImportFile(null)
-      // Reload the page to reflect imported data
       setTimeout(() => window.location.reload(), 1500)
     } catch (error) {
       setImportResult({ status: 'error', message: error instanceof Error ? error.message : 'Import failed' })
     }
   }, [importFile])
 
-  const getConnectionStatus = () => {
-    switch (testResult.status) {
-      case 'connected': return { label: 'Connected', variant: 'success' as const, icon: Check }
-      case 'testing': return { label: 'Testing...', variant: 'info' as const, icon: RotateCcw }
-      case 'error': return { label: 'Error', variant: 'error' as const, icon: AlertCircle }
-      default: return { label: 'Not tested', variant: 'default' as const, icon: AlertCircle }
+  const getConnectionStatusConfig = () => {
+    switch (connectionStatus) {
+      case 'connected': return { label: 'Connected', variant: 'success' as const, icon: Check, description: 'Your API key is working correctly' }
+      case 'testing': return { label: 'Testing...', variant: 'info' as const, icon: RotateCcw, description: 'Validating your API key...' }
+      case 'invalid-key': return { label: 'Invalid Key', variant: 'error' as const, icon: AlertCircle, description: 'The provided API key is not valid' }
+      case 'error': return { label: 'Error', variant: 'error' as const, icon: AlertCircle, description: testResult.message || 'Connection test failed' }
+      default: return { label: 'Not Configured', variant: 'default' as const, icon: AlertCircle, description: 'No BYOK key provided. Click Test Connection to verify server-side fallback (Vercel GEMINI_API_KEY).' }
     }
   }
 
@@ -120,8 +185,8 @@ export function Settings() {
     }
   }
 
-  const status = getConnectionStatus()
-  const StatusIcon = status.icon
+  const connStatus = getConnectionStatusConfig()
+  const StatusIcon = connStatus.icon
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -142,59 +207,111 @@ export function Settings() {
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <CardTitle>AI Integration â€” Google Gemini</CardTitle>
-              <CardDescription>AI reviews are powered by a server-side Gemini API key configured in Vercel environment variables</CardDescription>
+              <CardTitle>AI Integration — Google Gemini</CardTitle>
+              <CardDescription>AI reviews are powered by a server-side Gemini API key configured in Vercel environment variables, or bring your own key (BYOK) for session-only use</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* BYOK Section */}
+          <div className="space-y-4 p-4 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--color-border)]">
+            <h4 className="font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+              <Key className="w-5 h-5" />
+              Bring Your Own API Key (BYOK)
+            </h4>
+            <p className="text-sm text-[var(--color-text-secondary)]">
+              Enter your own Gemini API key for this session only. The key is kept in memory and never persisted to disk or exported.
+              If no key is provided, the server-side fallback (Vercel GEMINI_API_KEY) will be used.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Input
+                  type={showKey ? 'text' : 'password'}
+                  placeholder="Enter your Gemini API key..."
+                  value={userApiKey}
+                  onChange={(e) => setUserApiKey(e.target.value)}
+                  className="pr-12"
+                  aria-label="Gemini API Key"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                  aria-label={showKey ? 'Hide key' : 'Show key'}
+                >
+                  {showKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <Button
+                onClick={handleSaveKey}
+                disabled={isSaving || !userApiKey.trim()}
+                leftIcon={isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              >
+                {isSaving ? 'Saving...' : 'Save / Connect'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleClearKey}
+                disabled={!userGeminiApiKey}
+                leftIcon={<X className="w-4 h-4" />}
+              >
+                Clear Key
+              </Button>
+            </div>
+          </div>
+
           <div className="space-y-4">
             <div className="flex flex-wrap gap-3">
-              <Button variant="outline" onClick={handleTestApiKey} isLoading={testResult.status === 'testing'} leftIcon={<RotateCcw className="w-4 h-4" />}>
+              <Button
+                variant="outline"
+                onClick={() => handleTestApiKey()}
+                isLoading={testResult.status === 'testing' || connectionStatus === 'testing'}
+                leftIcon={<RotateCcw className="w-4 h-4" />}
+              >
                 Test Connection
               </Button>
             </div>
 
             {/* Connection Status */}
-            <div className={`p-4 rounded-lg border flex items-center gap-3 ${getStatusClass(status.variant)}`}>
+            <div className={`p-4 rounded-lg border flex items-center gap-3 ${getStatusClass(connStatus.variant)}`}>
               <StatusIcon className="w-5 h-5 flex-shrink-0" />
               <div>
-                <p className="font-medium text-sm capitalize">{status.label}</p>
-                {testResult.message && testResult.status !== 'idle' && (
-                  <p className="text-sm mt-1 opacity-80">{testResult.message}</p>
-                )}
+                <p className="font-medium text-sm capitalize">{connStatus.label}</p>
+                <p className="text-sm mt-1 opacity-80">{connStatus.description}</p>
               </div>
             </div>
+          </div>
 
-            <div className="pt-4 border-t border-[var(--color-border)]">
-              <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Security & Configuration</h4>
-              <div className="space-y-3 text-sm text-[var(--color-text-secondary)]">
-                <div className="p-3 bg-[var(--color-info-bg)] border border-[var(--color-info)]/30 rounded-lg">
-                  <p className="font-medium text-[var(--color-info)] flex items-center gap-2"><Shield className="w-4 h-4" /> How it works</p>
-                  <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>The Gemini API key is configured <strong>server-side only</strong> — never in the browser.</li>
-                    <li>Requests go through the server proxy (<code className="px-1 bg-[var(--color-bg-tertiary)] rounded">/api/gemini</code>) — the key never leaves the server.</li>
-                    <li>No API key is stored in localStorage, IndexedDB, or sent from the frontend.</li>
-                    <li>Only your content and guidelines are sent to the server for review.</li>
-                  </ul>
-                </div>
+          <div className="pt-4 border-t border-[var(--color-border)]">
+            <h4 className="font-medium text-[var(--color-text-primary)] mb-3">Security & Configuration</h4>
+            <div className="space-y-3 text-sm text-[var(--color-text-secondary)]">
+              <div className="p-3 bg-[var(--color-info-bg)] border border-[var(--color-info)]/30 rounded-lg">
+                <p className="font-medium text-[var(--color-info)] flex items-center gap-2"><Shield className="w-4 h-4" /> How it works</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>The Gemini API key is configured <strong>server-side only</strong> — never in the browser.</li>
+                  <li>Requests go through the server proxy (<code className="px-1 bg-[var(--color-bg-tertiary)] rounded">/api/gemini</code>) — the key never leaves the server.</li>
+                  <li>No API key is stored in localStorage, IndexedDB, or sent from the frontend.</li>
+                  <li>Only your content and guidelines are sent to the server for review.</li>
+                  <li><strong>BYOK keys are session-only</strong> — they are kept in memory and lost on refresh/close.</li>
+                </ul>
+              </div>
 
-                <div className="p-3 bg-[var(--color-warning-bg)] border border-[var(--color-warning)]/30 rounded-lg">
-                  <p className="font-medium text-[var(--color-warning)] flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Local Development Setup</p>
-                  <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>For local testing, add <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">GEMINI_API_KEY</code> to <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">.env.local</code> (gitignored).</li>
-                    <li>Or: Set it in Vercel Dashboard → Project Settings → Environment Variables, then run <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">vercel env pull</code>.</li>
-                    <li>Start the full-stack dev server: <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">vercel dev</code> (not <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">npm run dev</code>).</li>
-                  </ul>
-                </div>
+              <div className="p-3 bg-[var(--color-warning-bg)] border border-[var(--color-warning)]/30 rounded-lg">
+                <p className="font-medium text-[var(--color-warning)] flex items-center gap-2"><AlertCircle className="w-4 h-4" /> Local Development Setup</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>For local testing, add <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">GEMINI_API_KEY</code> to <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">.env.local</code> (gitignored).</li>
+                  <li>Or: Set it in Vercel Dashboard → Project Settings → Environment Variables, then run <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">vercel env pull</code>.</li>
+                  <li>Start the full-stack dev server: <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">vercel dev</code> (not <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">npm run dev</code>).</li>
+                </ul>
+              </div>
 
-                <div className="p-3 bg-[var(--color-success-bg)] border border-[var(--color-success)]/30 rounded-lg">
-                  <p className="font-medium text-[var(--color-success)] flex items-center gap-2"><Check className="w-4 h-4" /> Production (Vercel)</p>
-                  <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>Set <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">GEMINI_API_KEY</code> in Vercel Project Settings → Environment Variables.</li>
-                    <li>Deploy — the serverless function reads it automatically.</li>
-                  </ul>
-                </div>
+              <div className="p-3 bg-[var(--color-success-bg)] border border-[var(--color-success)]/30 rounded-lg">
+                <p className="font-medium text-[var(--color-success)] flex items-center gap-2"><Check className="w-4 h-4" /> Production (Vercel)</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Set <code className="px-1 bg-[var(--color-bg-tertiary)] rounded">GEMINI_API_KEY</code> in Vercel Project Settings → Environment Variables.</li>
+                  <li>Deploy — the serverless function reads it automatically.</li>
+                </ul>
               </div>
             </div>
           </div>
@@ -326,7 +443,7 @@ export function Settings() {
               <span className="text-[var(--color-text-secondary)]">Version</span>
               <span className="font-mono text-[var(--color-text-primary)]">1.0.0</span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-[var(--color-bg-secondary)] rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-[var(--color-bg-tertiary)] rounded-lg">
               <span className="text-[var(--color-text-secondary)]">Team</span>
               <span className="text-[var(--color-text-primary)]">ThroneCaptures</span>
             </div>
@@ -334,7 +451,7 @@ export function Settings() {
               <span className="text-[var(--color-text-secondary)]">Members</span>
               <span className="text-[var(--color-text-primary)]">Kislay Choubey, Aman Sapra</span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-[var(--color-bg-secondary)] rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-[var(--color-bg-tertiary)] rounded-lg">
               <span className="text-[var(--color-text-secondary)]">Event</span>
               <span className="text-[var(--color-text-primary)]">CodeNexus Hackathon</span>
             </div>

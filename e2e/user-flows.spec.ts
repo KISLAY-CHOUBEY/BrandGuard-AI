@@ -119,8 +119,8 @@ test.describe('BrandGuard AI - Settings Functionality', () => {
     await page.goto('/settings')
     await page.waitForLoadState('networkidle')
 
-    // Connection status should be visible (shows "Not tested" initially)
-    await expect(page.locator('text=Not tested')).toBeVisible()
+    // Connection status should be visible (shows "Not Configured" initially)
+    await expect(page.locator('text=Not Configured')).toBeVisible()
   })
 })
 

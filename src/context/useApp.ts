@@ -31,6 +31,10 @@ interface AppContextType extends AppState {
   switchToDemo: () => Promise<void>
   switchToNormal: () => Promise<void>
   resetDemo: () => Promise<void>
+  // BYOK (Bring Your Own Key) - User-provided Gemini API key
+  userGeminiApiKey: string | null
+  setUserGeminiApiKey: (key: string | null) => void
+  clearUserGeminiApiKey: () => void
 }
 
 const AppContext = createContext<AppContextType | null>(null)

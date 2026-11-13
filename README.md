@@ -7,8 +7,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5-646cff.svg)](https://vitejs.dev/)
-[![Gemini](https://img.shields.io/badge/Gemini-1.5%20Flash-4285f4.svg)](https://ai.google.dev/)
-[![Tests](https://img.shields.io/badge/Tests-131%20Unit%20%2B%2022%20E2E-brightgreen.svg)](https://github.com)
+[![Gemini](https://img.shields.io/badge/Gemini-3.8%20Flash-4285f4.svg)](https://ai.google.dev/)
+[![Tests](https://img.shields.io/badge/Tests-155%20Unit%20%2B%2022%20E2E-brightgreen.svg)](https://github.com)
 
 ---
 
@@ -43,6 +43,7 @@
 - Overall compliance score (0-100)
 - AI-generated review summary
 - **Server-side API proxy** — API key never leaves the server (Vercel environment variables)
+- **Bring Your Own Key (BYOK)** — Optional session-only user-provided key sent via `x-gemini-api-key` header; never persisted
 
 ### ✅ Human-in-the-Loop Workflow
 - **Never auto-publish** — human approval required
@@ -75,6 +76,7 @@
 - Complete data export (JSON) / clear all data
 - **Test Connection** button validates server-side Gemini API configuration
 - Security notice explaining server-side API key management
+- **Bring Your Own Key (BYOK)** — Enter your own Gemini API key for session-only use (kept in memory, never persisted)
 
 ### 🎨 Premium SaaS UI
 - Responsive: Mobile (<768px), Tablet (768-1024), Desktop (>1024)
@@ -171,14 +173,14 @@
 | Test Suite | Command | Result |
 |------------|---------|--------|
 | **TypeScript** | `npm run typecheck` | ✅ 0 errors |
-| **ESLint** | `npm run lint` | ✅ 0 warnings |
+| **ESLint** | `npm run lint` | ⚠️ 0 errors; pre-existing warnings cause `--max-warnings 0` to fail |
 | **Production Build** | `npm run build` | ✅ Success |
-| **Unit Tests** | `npm run test -- --run` | ✅ **131/131 passing** |
+| **Unit Tests** | `npm run test -- --run` | ✅ **155/155 passing** |
 | **E2E Tests** | `npx playwright test` | ✅ **22/22 passing** |
 
 ### Test Coverage Details
 
-**Unit Tests (131)** — `src/**/*.test.ts(x)`:
+**Unit Tests (155)** — `src/**/*.test.ts(x)`:
 - Storage service (IndexedDB CRUD, transactions, import/export) — 33 tests
 - Gemini service (request building, response parsing, retry logic) — 13 tests
 - Rate limiter (token bucket, sliding window) — 13 tests
@@ -282,7 +284,7 @@ Open `http://localhost:3000`
 | `npm run preview` | Preview production build |
 | `npm run typecheck` | TypeScript strict check |
 | `npm run lint` | ESLint check |
-| `npm run test` | Run unit tests (131 tests) |
+| `npm run test` | Run unit tests (155 tests) |
 | `npx playwright test` | Run E2E tests (22 tests) |
 
 ---
@@ -319,6 +321,7 @@ npm run preview
 | [Implementation Plan](docs/IMPLEMENTATION-PLAN.md) | Phased Build Plan |
 | [Testing](docs/TESTING.md) | Test Cases & Results |
 | [Security](docs/SECURITY.md) | Security & Privacy Model |
+| [Round 3 Final Submission Report](docs/ROUND3-FINAL-SUBMISSION-REPORT.md) | Final submission readiness & verification |
 | [Roadmap](docs/ROADMAP.md) | Round-wise Plan |
 | [Team Plan](docs/TEAM-PLAN.md) | Roles & Responsibilities |
 | [Project Status](docs/PROJECT-STATUS.md) | Progress Tracker |
@@ -337,6 +340,7 @@ npm run preview
 - **Rate limited** — 10 requests/minute per IP on `/api/gemini`
 - **Request size limit** — 100KB body limit on `/api/gemini`
 - **Exponential backoff** — 3 retries with jitter for upstream failures
+- **Bring Your Own Key (BYOK)** — Optional session-only user-provided key; kept in memory only, never persisted to IndexedDB, localStorage, or exported data; lost on refresh/close
 
 > ⚠️ **Important Limitations** (see Limitations section above):
 > - **No authentication or authorization** — single-user MVP for hackathon demonstration
@@ -345,7 +349,7 @@ npm run preview
 > - **Do not deploy publicly without adding authentication** (see [SECURITY.md](docs/SECURITY.md#known-limitations))
 > - For hackathon demos: enable Vercel Password Protection or deploy behind VPN/ngrok with auth
 >
-> **API Key**: Stored in Vercel Environment Variables (server-side only). Never exposed to client. Configure in Vercel Project Settings → Environment Variables.
+> **API Key**: Stored in Vercel Environment Variables (server-side only). Never exposed to client. Configure in Vercel Project Settings → Environment Variables. Users may also provide their own key per session via the Settings page (BYOK).
 
 ---
 
